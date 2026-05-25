@@ -1,0 +1,40 @@
+{
+  "name": "omp-commandcode-provider",
+  "version": "0.1.0",
+  "description": "Dependency-free OMP extension for the Command Code API (commandcode.ai)",
+  "private": true,
+  "type": "module",
+  "keywords": [
+    "omp-extension",
+    "commandcode",
+    "provider"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rabesss/omp-commandcode-provider.git"
+  },
+  "homepage": "https://github.com/rabesss/omp-commandcode-provider#readme",
+  "bugs": {
+    "url": "https://github.com/rabesss/omp-commandcode-provider/issues"
+  },
+  "scripts": {
+    "test": "node --test tests/test-pure-functions.ts tests/test-oauth.ts tests/test-abort.ts tests/test-stream.ts tests/test-model-registry.ts && node tests/test-omp-local.mjs",
+    "test:unit": "node --test tests/test-pure-functions.ts tests/test-model-registry.ts",
+    "test:oauth": "node --test tests/test-oauth.ts",
+    "test:abort": "node --test tests/test-abort.ts",
+    "test:stream": "node --test tests/test-stream.ts",
+    "test:omp-local": "node tests/test-omp-local.mjs",
+    "test:live": "node tests/test-live-omp.mjs"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "omp": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
