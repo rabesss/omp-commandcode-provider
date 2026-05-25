@@ -131,10 +131,19 @@ The committed registry matches the latest upstream
 | StepFun | `stepfun/Step-3.5-Flash` |
 | Google | `google/gemini-3.5-flash`, `google/gemini-3.1-flash-lite` |
 
-When upstream changes its audited model snapshot, update `models.json` by
-reviewing and copying the new registry change, then update and run the registry
-test. This repository intentionally does not download or execute npm package
-contents as an update mechanism.
+When upstream changes its audited model snapshot, check and stage a candidate
+registry update without installing or executing npm package contents:
+
+```sh
+node scripts/sync-upstream-models.mjs
+node scripts/sync-upstream-models.mjs --write
+git diff -- models.json
+node --test tests/test-model-registry.ts
+```
+
+The synchronizer downloads only the upstream provider's reviewed JSON registry
+from GitHub. Review the diff before committing any changed model or pricing
+entry.
 
 ## Features
 

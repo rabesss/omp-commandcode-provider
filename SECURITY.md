@@ -16,6 +16,10 @@ loaded directly from its checked-out TypeScript source by OMP. Do not introduce
 package-manager installation hooks, npm publishing workflows, or runtime
 packages without a documented security review.
 
+The optional model synchronizer reads JSON from the credited upstream GitHub
+repository and writes it only when invoked with `--write`; review its diff
+before committing.
+
 ## Reporting
 
 Report a suspected vulnerability through GitHub's private vulnerability

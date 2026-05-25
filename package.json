@@ -25,7 +25,9 @@
     "test:abort": "node --test tests/test-abort.ts",
     "test:stream": "node --test tests/test-stream.ts",
     "test:omp-local": "node tests/test-omp-local.mjs",
-    "test:live": "node tests/test-live-omp.mjs"
+    "test:live": "node tests/test-live-omp.mjs",
+    "models:check": "node scripts/sync-upstream-models.mjs",
+    "models:update": "node scripts/sync-upstream-models.mjs --write"
   },
   "pi": {
     "extensions": [
