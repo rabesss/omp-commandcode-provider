@@ -25,15 +25,12 @@ function waitForClose(server: {
 }
 
 describe("startAuthServer()", () => {
-  it("starts on a localhost port and accepts a valid callback POST", async () => {
+  it("starts on a loopback port and accepts the required callback fields", async () => {
     const { server, port, waitForCallback } = await startAuthServer({ startPort: 0 })
 
     const callbackData: AuthCallback = {
       apiKey: "user_testKey123",
       state: "test-state-token",
-      userId: "user_123",
-      userName: "Test User",
-      keyName: "test-key",
     }
 
     // Simulate the Command Code Studio posting the API key back
@@ -50,9 +47,6 @@ describe("startAuthServer()", () => {
     const result = await waitForCallback
     assert.equal(result.apiKey, "user_testKey123")
     assert.equal(result.state, "test-state-token")
-    assert.equal(result.userId, "user_123")
-    assert.equal(result.userName, "Test User")
-    assert.equal(result.keyName, "test-key")
 
     await waitForClose(server)
   })
@@ -88,12 +82,27 @@ describe("startAuthServer()", () => {
     const response = await fetch(`http://127.0.0.1:${port}/callback`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
-      body: JSON.stringify({ apiKey: "key", state: "s" }),
+      body: JSON.stringify({ apiKey: "key" }),
     })
 
     assert.equal(response.status, 400)
 
     await new Promise((resolve) => setTimeout(resolve, 100))
+    server.close()
+  })
+
+  it("does not grant callback CORS to unapproved origins", async () => {
+    const { server, port } = await startAuthServer({ startPort: 0 })
+
+    const response = await fetch(`http://127.0.0.1:${port}/callback`, {
+      method: "OPTIONS",
+      headers: { Origin: "https://attacker.example" },
+    })
+
+    assert.equal(response.status, 204)
+    assert.equal(response.headers.get("access-control-allow-origin"), null)
+    assert.equal(response.headers.get("access-control-allow-private-network"), null)
+
     server.close()
   })
 
@@ -222,9 +231,6 @@ describe("login()", () => {
       body: JSON.stringify({
         apiKey: "user_browserApiKey",
         state,
-        userId: "user_456",
-        userName: "Browser User",
-        keyName: "browser-key",
       }),
     })
 
@@ -296,9 +302,6 @@ describe("login()", () => {
       body: JSON.stringify({
         apiKey: "user_badState",
         state: "wrong-state-token",
-        userId: "user_789",
-        userName: "Attacker",
-        keyName: "evil-key",
       }),
     })
 

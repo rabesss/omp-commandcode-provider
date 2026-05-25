@@ -1,7 +1,7 @@
 /**
  * Local HTTP callback server for the Command Code browser auth flow.
  *
- * Starts a one-shot server on a CLI-compatible localhost port. The Command Code
+ * Starts a one-shot server on a CLI-compatible loopback port. The Command Code
  * Studio website POSTs the user's API key to /callback after they authenticate.
  */
 
@@ -10,13 +10,15 @@ import type { AddressInfo } from "node:net"
 
 const DEFAULT_PORT = 5959
 const DEFAULT_PORT_RANGE = 10
+const ALLOWED_ORIGINS = new Set([
+  "http://localhost:3000",
+  "https://staging.commandcode.ai",
+  "https://commandcode.ai",
+])
 
 export interface AuthCallback {
   apiKey: string
   state: string
-  userId: string
-  userName: string
-  keyName: string
 }
 
 export interface AuthServer {
@@ -91,27 +93,22 @@ export async function startAuthServer(options: AuthServerOptions = {}): Promise<
   })
 
   const server = createServer((req, res) => {
-    // CORS: allow requests from Command Code domains and localhost for dev.
-    const origin = req.headers.origin || ""
-    const allowedOrigins = [
-      "http://localhost:3000",
-      "https://staging.commandcode.ai",
-      "https://commandcode.ai",
-    ]
-    const responseOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0]
+    const origin = req.headers.origin
     const requestedHeaders = req.headers["access-control-request-headers"]
 
-    res.setHeader("Access-Control-Allow-Origin", responseOrigin)
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      typeof requestedHeaders === "string" && requestedHeaders.length > 0
-        ? requestedHeaders
-        : "Content-Type",
-    )
-    // Chrome's Private Network Access preflight may require this for an HTTPS
-    // page posting to a localhost HTTP callback.
-    res.setHeader("Access-Control-Allow-Private-Network", "true")
+    if (origin && ALLOWED_ORIGINS.has(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin)
+      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        typeof requestedHeaders === "string" && requestedHeaders.length > 0
+          ? requestedHeaders
+          : "Content-Type",
+      )
+      // Chrome's Private Network Access preflight may require this for an HTTPS
+      // page posting to a loopback HTTP callback.
+      res.setHeader("Access-Control-Allow-Private-Network", "true")
+    }
     res.setHeader("Content-Type", "application/json")
 
     // Handle CORS preflight.
@@ -164,13 +161,10 @@ export async function startAuthServer(options: AuthServerOptions = {}): Promise<
           return
         }
 
-        const apiKey = typeof parsed.apiKey === "string" ? parsed.apiKey : ""
+        const apiKey = typeof parsed.apiKey === "string" ? parsed.apiKey.trim() : ""
         const state = typeof parsed.state === "string" ? parsed.state : ""
-        const userId = typeof parsed.userId === "string" ? parsed.userId : ""
-        const userName = typeof parsed.userName === "string" ? parsed.userName : ""
-        const keyName = typeof parsed.keyName === "string" ? parsed.keyName : ""
 
-        if (!apiKey || !state || !userId || !userName || !keyName) {
+        if (!apiKey || !state) {
           res.writeHead(400)
           res.end(
             JSON.stringify({
@@ -184,7 +178,7 @@ export async function startAuthServer(options: AuthServerOptions = {}): Promise<
         res.writeHead(200)
         res.end(JSON.stringify({ success: true }))
 
-        resolveCallback({ apiKey, state, userId, userName, keyName })
+        resolveCallback({ apiKey, state })
         closeServer(server)
       } catch {
         res.writeHead(400)
