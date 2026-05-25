@@ -67,8 +67,20 @@ describe("streamCommandCode — abort behavior", () => {
       signal: controller.signal,
     })
 
-    setTimeout(() => controller.abort(), 50)
-    const events = await collectEvents(stream, 2_000)
+    const events = await Promise.race([
+      (async () => {
+        const observed = []
+        for await (const event of stream) {
+          observed.push(event)
+          if (event.type === "text_delta") controller.abort()
+          if (event.type === "done" || event.type === "error") break
+        }
+        return observed
+      })(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Timed out waiting for aborted stream")), 2_000)
+      }),
+    ])
 
     assert.ok(
       events.some((event) => event.type === "text_delta"),

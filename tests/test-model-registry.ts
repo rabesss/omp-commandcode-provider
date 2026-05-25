@@ -38,12 +38,16 @@ describe("Command Code model registry", () => {
 
   it("registers every committed model with OMP", () => {
     let providerName = ""
-    let providerConfig: { models?: Array<{ id: string }> } | undefined
+    let providerConfig:
+      | { models?: Array<{ id: string; contextWindow: number; maxTokens: number }> }
+      | undefined
 
     commandCodeExtension({
       registerProvider(name, config) {
         providerName = name
-        providerConfig = config as { models?: Array<{ id: string }> }
+        providerConfig = config as {
+          models?: Array<{ id: string; contextWindow: number; maxTokens: number }>
+        }
       },
     })
 
@@ -52,5 +56,15 @@ describe("Command Code model registry", () => {
       providerConfig?.models?.map((model) => model.id),
       expectedModels,
     )
+    const gpt53Codex = providerConfig?.models?.find((model) => model.id === "gpt-5.3-codex")
+    const deepSeekFlash = providerConfig?.models?.find(
+      (model) => model.id === "deepseek/deepseek-v4-flash",
+    )
+    const deepSeekPro = providerConfig?.models?.find(
+      (model) => model.id === "deepseek/deepseek-v4-pro",
+    )
+    assert.equal(gpt53Codex?.contextWindow, 272_000)
+    assert.equal(deepSeekFlash?.maxTokens, 200_000)
+    assert.equal(deepSeekPro?.maxTokens, 200_000)
   })
 })

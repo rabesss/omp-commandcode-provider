@@ -53,6 +53,14 @@ interface ModelsJson {
 
 const modelsJson = modelsJsonData as ModelsJson
 
+const MODEL_OVERRIDES: Record<string, { contextWindow?: number; maxTokens?: number }> = {
+  // OMP represents the usable input context separately from the output budget.
+  "gpt-5.3-codex": { contextWindow: 272_000 },
+  // Command Code currently rejects params.max_tokens above 200K.
+  "deepseek/deepseek-v4-pro": { maxTokens: 200_000 },
+  "deepseek/deepseek-v4-flash": { maxTokens: 200_000 },
+}
+
 // ---------------------------------------------------------------------------
 // Build cost lookup (model id -> pricing)
 // ---------------------------------------------------------------------------
@@ -73,12 +81,13 @@ for (const p of modelsJson.pricing) {
 
 const MODELS = modelsJson.models.map((m) => {
   const cost = costByModelId.get(m.id)
+  const override = MODEL_OVERRIDES[m.id]
   return {
     id: m.id,
     name: `${m.name} (CC)`,
     reasoning: m.reasoning,
-    contextWindow: m.contextWindow,
-    maxTokens: m.maxOutputTokens,
+    contextWindow: override?.contextWindow ?? m.contextWindow,
+    maxTokens: override?.maxTokens ?? m.maxOutputTokens,
     cost: {
       input: cost?.promptCost ?? 0,
       output: cost?.completionCost ?? 0,

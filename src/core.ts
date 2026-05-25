@@ -328,7 +328,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             messages: messagesToCC(context.messages),
             tools: toolsToJson(context.tools),
             system: systemPromptText(context.systemPrompt),
-            max_tokens: Math.min(options?.maxTokens ?? model.maxTokens, 200_000),
+            max_tokens: options?.maxTokens ?? model.maxTokens,
             stream: true,
           },
         }

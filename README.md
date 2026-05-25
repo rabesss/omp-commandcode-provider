@@ -131,6 +131,12 @@ The committed registry matches the latest upstream
 | StepFun | `stepfun/Step-3.5-Flash` |
 | Google | `google/gemini-3.5-flash`, `google/gemini-3.1-flash-lite` |
 
+The extension applies two runtime metadata corrections without altering the
+audited upstream snapshot: `gpt-5.3-codex` is exposed with a `272K` usable
+input context because its `128K` output budget is separate in OMP, and the
+DeepSeek models are exposed with `200K` maximum output because the Command
+Code gateway currently rejects larger `max_tokens` requests.
+
 When upstream changes its audited model snapshot, check and stage a candidate
 registry update without installing or executing npm package contents:
 
