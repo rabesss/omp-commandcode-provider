@@ -17,6 +17,7 @@ import { randomBytes } from "node:crypto"
 import { startAuthServer } from "./auth-server.ts"
 
 const STUDIO_BASE_URL = "https://commandcode.ai"
+const CALLBACK_HOST = "127.0.0.1"
 const TEN_YEARS_MS = 10 * 365 * 24 * 60 * 60 * 1000 // API keys don't expire
 const DEFAULT_AUTH_TIMEOUT_MS = 15_000
 
@@ -119,14 +120,14 @@ export async function login(callbacks: OAuthLoginCallbacks): Promise<OAuthCreden
   }
 
   const stateToken = generateStateToken()
-  const callbackUrl = `http://localhost:${authServer.port}/callback`
+  const callbackUrl = `http://${CALLBACK_HOST}:${authServer.port}/callback`
   const authUrl = `${STUDIO_BASE_URL}/studio/auth/cli?callback=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(stateToken)}`
 
   // Tell OMP to open the browser.
   callbacks.onAuth({ url: authUrl })
 
   // Wait for the Command Code Studio to POST the API key back. If the browser
-  // cannot reach localhost (Command Code shows "Copy your API key"), fall back
+  // cannot reach the loopback callback (Command Code shows "Copy your API key"), fall back
   // to OMP's prompt so the user can paste the key from the browser.
   let callback: { apiKey: string; state: string }
   try {

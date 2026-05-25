@@ -199,14 +199,16 @@ describe("login()", () => {
     // Verify the auth URL was passed to callbacks (callback URL is encoded)
     assert.match(
       authUrl,
-      /^https:\/\/commandcode\.ai\/studio\/auth\/cli\?callback=http%3A%2F%2Flocalhost%3A\d+%2Fcallback&state=/,
+      /^https:\/\/commandcode\.ai\/studio\/auth\/cli\?callback=http%3A%2F%2F127\.0\.0\.1%3A\d+%2Fcallback&state=/,
     )
 
     // Extract port and state from the URL
     const url = new URL(authUrl)
-    const port = parseInt(url.searchParams.get("callback")?.match(/localhost:(\d+)/)?.[1] ?? "0")
+    const callback = new URL(url.searchParams.get("callback") ?? "")
+    const port = parseInt(callback.port)
     const state = url.searchParams.get("state") ?? ""
 
+    assert.equal(callback.hostname, "127.0.0.1")
     assert.ok(port > 0, "auth server should be on a non-zero port")
     assert.ok(state.length > 0, "state token should not be empty")
 
@@ -285,7 +287,7 @@ describe("login()", () => {
     while (!authUrl) await new Promise((resolve) => setTimeout(resolve, 10))
 
     const url = new URL(authUrl)
-    const port = parseInt(url.searchParams.get("callback")?.match(/localhost:(\d+)/)?.[1] ?? "0")
+    const port = parseInt(new URL(url.searchParams.get("callback") ?? "").port)
 
     // Post back with a wrong state token
     await fetch(`http://127.0.0.1:${port}/callback`, {

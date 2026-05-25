@@ -17,8 +17,8 @@ with or endorsed by Command Code.
 - Runtime dependencies: **none**.
 - Install-time dependencies: **none**. Install by cloning source into OMP's
   native extension directory; do not run `npm install`.
-- The extension imports only its tracked local source files, `models.json`, and
-  Node built-ins.
+- Runtime imports are only tracked local source files, `models.json`, and Node
+  built-ins. Its OMP `ExtensionAPI` import is type-only and erased at runtime.
 - It does not contain an API key. Keep `COMMANDCODE_API_KEY` in
   `~/.omp/agent/.env`, which should be permission mode `600`, or use OMP's
   interactive login flow.
@@ -92,9 +92,10 @@ In interactive OMP, run:
 ```
 
 Select **Command Code**. The extension opens Command Code Studio and accepts a
-one-time localhost callback; if automatic callback transfer is unavailable, it
-prompts for the API key from the browser. API keys do not require OAuth refresh,
-so the provider stores the credential using OMP's provider-auth interface.
+one-time `127.0.0.1` callback matching its loopback listener; if automatic
+callback transfer is unavailable, it prompts for the API key from the browser
+after 15 seconds. API keys do not require OAuth refresh, so the provider stores
+the credential using OMP's provider-auth interface.
 
 The provider also retains the original compatibility fallback for
 `~/.commandcode/auth.json` and legacy `~/.pi/agent/auth.json` credential files.

@@ -12,6 +12,8 @@
  * Models are sourced from the reviewed, committed models.json registry.
  */
 
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent"
+
 import modelsJsonData from "./models.json" with { type: "json" }
 import { createStreamCommandCode, DEFAULT_API_BASE } from "./src/core.ts"
 import { getApiKey, login, refreshToken } from "./src/oauth.ts"
@@ -111,11 +113,7 @@ const streamCommandCode = createStreamCommandCode({
 // Extension entry point
 // ---------------------------------------------------------------------------
 
-interface ProviderRegistrar {
-  registerProvider(name: string, config: unknown): void
-}
-
-export default function (pi: ProviderRegistrar) {
+export default function (pi: ExtensionAPI) {
   pi.registerProvider("commandcode", {
     name: "Command Code",
     baseUrl: API_BASE,
