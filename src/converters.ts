@@ -4,6 +4,8 @@ import { join } from "node:path"
 
 import type { MessageLike, StopReason, ToolLike } from "./types.ts"
 
+const NON_VISION_IMAGE_PLACEHOLDER = "[image omitted: model does not support vision]"
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -204,7 +206,7 @@ export function messagesToCC(messages?: readonly MessageLike[]): unknown[] {
     if (message.role === "user") {
       out.push({
         role: "user",
-        content: typeof message.content === "string" ? message.content : message.content,
+        content: userContentToCC(message.content),
       })
     } else if (message.role === "assistant") {
       const parts: unknown[] = []
@@ -246,6 +248,21 @@ export function messagesToCC(messages?: readonly MessageLike[]): unknown[] {
     }
   }
   return out
+}
+
+function userContentToCC(content: unknown): unknown {
+  if (typeof content === "string") return content
+  const parts: Array<{ type: "text"; text: string }> = []
+  let omittedImages = false
+  for (const part of recordArray(content)) {
+    if (part.type === "text") {
+      parts.push({ type: "text", text: stringValue(part.text) ?? "" })
+    } else if (part.type === "image") {
+      omittedImages = true
+    }
+  }
+  if (omittedImages) parts.push({ type: "text", text: NON_VISION_IMAGE_PLACEHOLDER })
+  return parts.length > 0 ? parts : ""
 }
 
 export function parseStreamEventLine(line: string): unknown | undefined {

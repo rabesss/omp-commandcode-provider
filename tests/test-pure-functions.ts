@@ -250,6 +250,23 @@ describe("messagesToCC()", () => {
     assert.equal(objectAt(result, ["1", "content", "1"]), undefined)
   })
 
+  it("omits user image blocks for Command Code", () => {
+    const result = messagesToCC([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Describe this screenshot" },
+          { type: "image", data: "x", mimeType: "image/png" },
+        ],
+      },
+    ])
+
+    assert.deepEqual(objectAt(result, ["0", "content"]), [
+      { type: "text", text: "Describe this screenshot" },
+      { type: "text", text: "[image omitted: model does not support vision]" },
+    ])
+  })
+
   it("handles empty conversations", () => {
     assert.deepEqual(messagesToCC([]), [])
   })
