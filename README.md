@@ -116,9 +116,8 @@ through qualified `--model commandcode/<model-id>` selectors.
 
 ## Models
 
-The committed registry matches the latest upstream
-`ninehills/pi-commandcode-provider` model snapshot checked for this adaptation
-(`960d0d1`) and exposes all 21 entries:
+The committed registry matches the Command Code Provider API model list checked
+for this adaptation and exposes all 23 entries:
 
 | Family | Model IDs |
 | --- | --- |
@@ -130,27 +129,27 @@ The committed registry matches the latest upstream
 | MiniMax | `MiniMaxAI/MiniMax-M2.7`, `MiniMaxAI/MiniMax-M2.5` |
 | Qwen | `Qwen/Qwen3.6-Max-Preview`, `Qwen/Qwen3.6-Plus`, `Qwen/Qwen3.7-Max` |
 | StepFun | `stepfun/Step-3.5-Flash` |
+| Xiaomi | `xiaomi/mimo-v2.5-pro`, `xiaomi/mimo-v2.5` |
 | Google | `google/gemini-3.5-flash`, `google/gemini-3.1-flash-lite` |
 
 The extension applies two runtime metadata corrections without altering the
-audited upstream snapshot: `gpt-5.3-codex` is exposed with a `272K` usable
-input context because its `128K` output budget is separate in OMP, and the
-DeepSeek models are exposed with `200K` maximum output because the Command
-Code gateway currently rejects larger `max_tokens` requests.
+audited registry: `gpt-5.3-codex` is exposed with a `272K` usable input
+context because its `128K` output budget is separate in OMP, and the DeepSeek
+models are exposed with `200K` maximum output because the Command Code gateway
+currently rejects larger `max_tokens` requests.
 
-When upstream changes its audited model snapshot, check and stage a candidate
-registry update without installing or executing npm package contents:
+When Command Code changes its live model list, check it without installing or
+executing npm package contents:
 
 ```sh
 node scripts/sync-upstream-models.mjs
-node scripts/sync-upstream-models.mjs --write
 git diff -- models.json
 node --test tests/test-model-registry.ts
 ```
 
-The synchronizer downloads only the upstream provider's reviewed JSON registry
-from GitHub. Review the diff before committing any changed model or pricing
-entry.
+The synchronizer downloads only the public Provider API model list. Update
+`models.json` manually from Command Code docs when model metadata or pricing
+changes.
 
 ## Features
 

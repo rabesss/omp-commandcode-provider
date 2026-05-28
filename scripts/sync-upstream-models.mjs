@@ -1,49 +1,45 @@
 #!/usr/bin/env node
 
-import { readFile, writeFile } from "node:fs/promises"
+import { readFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const upstreamUrl =
-  "https://raw.githubusercontent.com/ninehills/pi-commandcode-provider/main/models.json"
+const upstreamUrl = "https://api.commandcode.ai/provider/v1/models"
 const projectDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const modelsPath = resolve(projectDir, "models.json")
-const write = process.argv.includes("--write")
 
-if (process.argv.slice(2).some((arg) => arg !== "--write")) {
-  throw new Error("Usage: node scripts/sync-upstream-models.mjs [--write]")
+if (process.argv.length > 2) {
+  throw new Error("Usage: node scripts/sync-upstream-models.mjs")
 }
 
-const response = await fetch(upstreamUrl)
+const response = await fetch(upstreamUrl, { headers: { accept: "application/json" } })
 if (!response.ok) {
-  throw new Error(`Unable to fetch upstream model registry: HTTP ${response.status}`)
+  throw new Error(`Unable to fetch Command Code model registry: HTTP ${response.status}`)
 }
 
 const upstream = await response.json()
 if (
   !upstream ||
-  !Array.isArray(upstream.models) ||
-  !Array.isArray(upstream.pricing) ||
-  upstream.models.some((model) => typeof model?.id !== "string")
+  upstream.object !== "list" ||
+  !Array.isArray(upstream.data) ||
+  upstream.data.some((model) => typeof model?.id !== "string")
 ) {
-  throw new Error("Upstream models.json does not match the expected registry shape")
+  throw new Error("Command Code model registry does not match the expected shape")
 }
 
-const next = `${JSON.stringify(upstream, null, 2)}\n`
-const current = await readFile(modelsPath, "utf8")
-const currentRegistry = JSON.parse(current)
+const current = JSON.parse(await readFile(modelsPath, "utf8"))
+const currentIds = current.models.map((model) => model.id)
+const upstreamIds = upstream.data.map((model) => model.id)
+const currentSet = new Set(currentIds)
+const upstreamSet = new Set(upstreamIds)
+const missing = upstreamIds.filter((id) => !currentSet.has(id))
+const stale = currentIds.filter((id) => !upstreamSet.has(id))
 
-if (JSON.stringify(currentRegistry) === JSON.stringify(upstream)) {
-  console.log(`[models] synchronized with upstream (${upstream.models.length} models)`)
+if (missing.length === 0 && stale.length === 0) {
+  console.log(`[models] synchronized with Command Code Provider API (${upstreamIds.length} models)`)
   process.exit(0)
 }
 
-if (!write) {
-  console.error(
-    `[models] upstream has changed (${upstream.models.length} models); review with --write, git diff, and tests`,
-  )
-  process.exit(1)
-}
-
-await writeFile(modelsPath, next, "utf8")
-console.log(`[models] wrote reviewed upstream candidate (${upstream.models.length} models)`)
+if (missing.length > 0) console.error(`[models] missing from models.json: ${missing.join(", ")}`)
+if (stale.length > 0) console.error(`[models] not in live Provider API: ${stale.join(", ")}`)
+process.exit(1)

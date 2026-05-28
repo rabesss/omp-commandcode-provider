@@ -253,11 +253,11 @@ describe("streamCommandCode — request serialization", () => {
 
     const headers = server.lastRequestHeaders()
     assert.equal(headers.authorization, "Bearer mock-key")
-    assert.equal(headers["x-command-code-version"], "0.24.1")
+    assert.equal(headers["x-command-code-version"], "0.27.2")
     assert.equal(headers["x-session-id"], "00000000-0000-4000-8000-000000000000")
   })
 
-  it("passes explicit maxTokens and custom headers through to Command Code", async () => {
+  it("caps explicit maxTokens and passes custom headers through to Command Code", async () => {
     server.mockResponse({
       type: "success",
       events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
@@ -272,7 +272,7 @@ describe("streamCommandCode — request serialization", () => {
       }),
     )
 
-    assert.equal(objectAt(server.lastRequestBody(), ["params", "max_tokens"]), 500_000)
+    assert.equal(objectAt(server.lastRequestBody(), ["params", "max_tokens"]), 200_000)
     assert.equal(server.lastRequestHeaders()["x-custom"], "value")
   })
 

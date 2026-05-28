@@ -38,6 +38,8 @@ export * from "./converters.ts"
 export * from "./types.ts"
 
 export const DEFAULT_API_BASE = "https://api.commandcode.ai"
+export const COMMAND_CODE_CLI_VERSION = "0.27.2"
+const COMMAND_CODE_MAX_OUTPUT_TOKENS = 200_000
 
 function defaultUsage(): Usage {
   return {
@@ -75,6 +77,10 @@ function abortError(message = "The operation was aborted"): DOMException {
 function successStopReason(reason: TerminalReason): StopReason {
   if (reason === "length" || reason === "toolUse") return reason
   return "stop"
+}
+
+function generateMaxTokens(model: ModelLike, options?: StreamOptions): number {
+  return Math.min(options?.maxTokens ?? model.maxTokens, model.maxTokens, COMMAND_CODE_MAX_OUTPUT_TOKENS)
 }
 
 function systemPromptText(prompt: ContextLike["systemPrompt"]): string {
@@ -328,7 +334,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             messages: messagesToCC(context.messages),
             tools: toolsToJson(context.tools),
             system: systemPromptText(context.systemPrompt),
-            max_tokens: options?.maxTokens ?? model.maxTokens,
+            max_tokens: generateMaxTokens(model, options),
             stream: true,
           },
         }
@@ -345,7 +351,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${apiKey}`,
-              "x-command-code-version": "0.24.1",
+              "x-command-code-version": COMMAND_CODE_CLI_VERSION,
               "x-cli-environment": "production",
               "x-project-slug": "pi-cc",
               "x-taste-learning": "false",

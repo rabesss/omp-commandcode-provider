@@ -15,7 +15,7 @@
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent"
 
 import modelsJsonData from "./models.json" with { type: "json" }
-import { createStreamCommandCode, DEFAULT_API_BASE } from "./src/core.ts"
+import { COMMAND_CODE_CLI_VERSION, createStreamCommandCode, DEFAULT_API_BASE } from "./src/core.ts"
 import { getApiKey, login, refreshToken } from "./src/oauth.ts"
 import { calculateCost, createAssistantMessageEventStream } from "./src/runtime.ts"
 
@@ -122,7 +122,7 @@ export default function (pi: ExtensionAPI) {
     api: "commandcode-custom",
     streamSimple: streamCommandCode,
     headers: {
-      "x-command-code-version": "0.24.1",
+      "x-command-code-version": COMMAND_CODE_CLI_VERSION,
       "x-cli-environment": "production",
     },
     oauth: {
