@@ -257,6 +257,32 @@ describe("streamCommandCode — request serialization", () => {
     assert.equal(headers["x-session-id"], "00000000-0000-4000-8000-000000000000")
   })
 
+  it('omits tools when toolChoice is "none"', async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+    const context = makeContext({
+      tools: [
+        {
+          name: "get_weather",
+          description: "Get weather",
+          parameters: { kind: "object", properties: { city: { kind: "string" } } },
+        },
+      ],
+    })
+
+    await collectEvents(
+      streamCommandCode(makeModel(), context, {
+        apiKey: "mock-key",
+        toolChoice: "none",
+      }),
+    )
+
+    assert.deepEqual(objectAt(server.lastRequestBody(), ["params", "tools"]), [])
+  })
+
   it("caps explicit maxTokens and passes custom headers through to Command Code", async () => {
     server.mockResponse({
       type: "success",

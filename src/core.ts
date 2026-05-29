@@ -332,7 +332,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           params: {
             model: model.id,
             messages: messagesToCC(context.messages),
-            tools: toolsToJson(context.tools),
+            tools: options?.toolChoice === "none" ? [] : toolsToJson(context.tools),
             system: systemPromptText(context.systemPrompt),
             max_tokens: generateMaxTokens(model, options),
             stream: true,

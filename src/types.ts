@@ -93,6 +93,7 @@ export interface StreamOptions {
   signal?: AbortSignal
   headers?: Record<string, string>
   maxTokens?: number
+  toolChoice?: unknown
   onPayload?: (payload: unknown, model: ModelLike) => unknown | Promise<unknown>
   onResponse?: (response: ProviderResponseInfo, model: ModelLike) => void | Promise<void>
 }
