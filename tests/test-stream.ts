@@ -239,7 +239,7 @@ describe("streamCommandCode — request serialization", () => {
     )
 
     const body = server.lastRequestBody()
-    assert.equal(objectAt(body, ["config", "workingDir"]), "/repo")
+    assert.equal(objectAt(body, ["config", "workingDir"]), "repo")
     assert.equal(objectAt(body, ["config", "date"]), "2026-05-05")
     assert.equal(objectAt(body, ["params", "model"]), "deepseek/deepseek-v4-flash")
     assert.equal(objectAt(body, ["params", "stream"]), true)

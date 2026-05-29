@@ -6,6 +6,7 @@
  */
 
 import { randomUUID } from "node:crypto"
+import { basename } from "node:path"
 
 import {
   getApiKey,
@@ -315,7 +316,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
 
         let body: unknown = {
           config: {
-            workingDir: cwd(),
+            workingDir: basename(cwd()) || ".",
             date: new Date(now()).toISOString().split("T")[0],
             environment: getEnvironmentInfo(),
             structure: [],
