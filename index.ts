@@ -15,7 +15,12 @@
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent"
 
 import modelsJsonData from "./models.json" with { type: "json" }
-import { COMMAND_CODE_CLI_VERSION, createStreamCommandCode, DEFAULT_API_BASE } from "./src/core.ts"
+import {
+  COMMAND_CODE_CLI_VERSION,
+  createStreamCommandCode,
+  DEFAULT_API_BASE,
+  modelInputModalities,
+} from "./src/core.ts"
 import { getApiKey, login, refreshToken } from "./src/oauth.ts"
 import { calculateCost, createAssistantMessageEventStream } from "./src/runtime.ts"
 
@@ -135,7 +140,7 @@ export default function (pi: ExtensionAPI) {
       id: model.id,
       name: model.name,
       reasoning: model.reasoning,
-      input: ["text"] as const,
+      input: modelInputModalities(model.id),
       cost: model.cost,
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,

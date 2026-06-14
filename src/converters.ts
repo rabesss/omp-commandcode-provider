@@ -5,6 +5,12 @@ import { join } from "node:path"
 import type { MessageLike, StopReason, ToolLike } from "./types.ts"
 
 const NON_VISION_IMAGE_PLACEHOLDER = "[image omitted: model does not support vision]"
+const MALFORMED_IMAGE_PLACEHOLDER = "[image omitted: attachment had no image data]"
+const DEFAULT_IMAGE_MIME_TYPE = "image/png"
+
+export interface MessagesToCCOptions {
+  supportsVision?: boolean
+}
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -198,15 +204,19 @@ function completeToolCallIds(messages?: readonly MessageLike[]): Set<string> {
   return new Set([...callIds].filter((id) => resultIds.has(id)))
 }
 
-export function messagesToCC(messages?: readonly MessageLike[]): unknown[] {
+export function messagesToCC(
+  messages?: readonly MessageLike[],
+  options: MessagesToCCOptions = {},
+): unknown[] {
   const out: unknown[] = []
   const pairedToolCallIds = completeToolCallIds(messages)
+  const supportsVision = options.supportsVision === true
 
   for (const message of messages ?? []) {
     if (message.role === "user") {
       out.push({
         role: "user",
-        content: userContentToCC(message.content),
+        content: userContentToCC(message.content, supportsVision),
       })
     } else if (message.role === "assistant") {
       const parts: unknown[] = []
@@ -250,19 +260,49 @@ export function messagesToCC(messages?: readonly MessageLike[]): unknown[] {
   return out
 }
 
-function userContentToCC(content: unknown): unknown {
+function imagePartToCC(part: Record<string, unknown>): { type: "image"; image: string } | undefined {
+  const data = stringValue(part.data)
+  if (!data) return undefined
+
+  const mimeType = stringValue(part.mimeType) ?? DEFAULT_IMAGE_MIME_TYPE
+  const image = data.startsWith("data:") ? data : `data:${mimeType};base64,${data}`
+  return { type: "image", image }
+}
+
+function userContentToCC(content: unknown, supportsVision: boolean): unknown {
   if (typeof content === "string") return content
-  const parts: Array<{ type: "text"; text: string }> = []
+
+  type CCUserPart = { type: "text"; text: string } | { type: "image"; image: string }
+  const parts: CCUserPart[] = []
   let omittedImages = false
+  let malformedImages = false
+
   for (const part of recordArray(content)) {
     if (part.type === "text") {
       parts.push({ type: "text", text: stringValue(part.text) ?? "" })
-    } else if (part.type === "image") {
-      omittedImages = true
+      continue
+    }
+
+    if (part.type === "image") {
+      if (supportsVision) {
+        const imagePart = imagePartToCC(part)
+        if (imagePart) {
+          parts.push(imagePart)
+        } else {
+          malformedImages = true
+        }
+      } else {
+        omittedImages = true
+      }
     }
   }
+
+  if (malformedImages) parts.push({ type: "text", text: MALFORMED_IMAGE_PLACEHOLDER })
   if (omittedImages) parts.push({ type: "text", text: NON_VISION_IMAGE_PLACEHOLDER })
-  return parts.length > 0 ? parts : ""
+  if (parts.length === 0) return ""
+
+  if (parts.length === 1 && parts[0]?.type === "text") return parts[0].text
+  return parts
 }
 
 export function parseStreamEventLine(line: string): unknown | undefined {

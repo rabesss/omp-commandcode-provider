@@ -20,6 +20,7 @@ import {
   stringValue,
   toolsToJson,
 } from "./converters.ts"
+import { modelSupportsVision } from "./model-capabilities.ts"
 import type {
   AssistantMessageEventStreamLike,
   AssistantMessageLike,
@@ -36,6 +37,7 @@ import type {
 } from "./types.ts"
 
 export * from "./converters.ts"
+export * from "./model-capabilities.ts"
 export * from "./types.ts"
 
 export const DEFAULT_API_BASE = "https://api.commandcode.ai"
@@ -332,7 +334,9 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           permissionMode: "standard",
           params: {
             model: model.id,
-            messages: messagesToCC(context.messages),
+            messages: messagesToCC(context.messages, {
+              supportsVision: modelSupportsVision(model.id),
+            }),
             tools: options?.toolChoice === "none" ? [] : toolsToJson(context.tools),
             system: systemPromptText(context.systemPrompt),
             max_tokens: generateMaxTokens(model, options),

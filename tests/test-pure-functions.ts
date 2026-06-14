@@ -250,20 +250,79 @@ describe("messagesToCC()", () => {
     assert.equal(objectAt(result, ["1", "content", "1"]), undefined)
   })
 
-  it("omits user image blocks for Command Code", () => {
-    const result = messagesToCC([
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "Describe this screenshot" },
-          { type: "image", data: "x", mimeType: "image/png" },
-        ],
-      },
-    ])
+  it("replaces user image blocks with a placeholder on text-only models", () => {
+    const result = messagesToCC(
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Describe this screenshot" },
+            { type: "image", data: "abc123", mimeType: "image/png" },
+          ],
+        },
+      ],
+      { supportsVision: false },
+    )
 
     assert.deepEqual(objectAt(result, ["0", "content"]), [
       { type: "text", text: "Describe this screenshot" },
       { type: "text", text: "[image omitted: model does not support vision]" },
+    ])
+  })
+
+  it("forwards user image blocks for vision-capable models", () => {
+    const result = messagesToCC(
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Describe this screenshot" },
+            { type: "image", data: "abc123", mimeType: "image/png" },
+          ],
+        },
+      ],
+      { supportsVision: true },
+    )
+
+    assert.deepEqual(objectAt(result, ["0", "content"]), [
+      { type: "text", text: "Describe this screenshot" },
+      { type: "image", image: "data:image/png;base64,abc123" },
+    ])
+  })
+
+  it("emits a placeholder when vision models receive malformed image data", () => {
+    const result = messagesToCC(
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Describe this screenshot" },
+            { type: "image", data: "", mimeType: "image/png" },
+          ],
+        },
+      ],
+      { supportsVision: true },
+    )
+
+    assert.deepEqual(objectAt(result, ["0", "content"]), [
+      { type: "text", text: "Describe this screenshot" },
+      { type: "text", text: "[image omitted: attachment had no image data]" },
+    ])
+  })
+
+  it("preserves pre-encoded data URLs for vision models", () => {
+    const result = messagesToCC(
+      [
+        {
+          role: "user",
+          content: [{ type: "image", data: "data:image/jpeg;base64,xyz", mimeType: "image/jpeg" }],
+        },
+      ],
+      { supportsVision: true },
+    )
+
+    assert.deepEqual(objectAt(result, ["0", "content"]), [
+      { type: "image", image: "data:image/jpeg;base64,xyz" },
     ])
   })
 

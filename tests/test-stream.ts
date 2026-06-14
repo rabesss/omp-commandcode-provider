@@ -318,6 +318,36 @@ describe("streamCommandCode — request serialization", () => {
     assert.equal(objectAt(server.lastRequestBody(), ["params", "system"]), "first\n\nsecond")
   })
 
+  it("serializes user images for vision-capable models", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+    const context = makeContext({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "What is this?" },
+            { type: "image", data: "abc123", mimeType: "image/png" },
+          ],
+        },
+      ],
+    })
+
+    await collectEvents(
+      streamCommandCode(makeModel({ id: "gpt-5.3-codex" }), context, {
+        apiKey: "mock-key",
+      }),
+    )
+
+    assert.deepEqual(objectAt(server.lastRequestBody(), ["params", "messages", "0", "content"]), [
+      { type: "text", text: "What is this?" },
+      { type: "image", image: "data:image/png;base64,abc123" },
+    ])
+  })
+
   it("runs onPayload and onResponse hooks", async () => {
     server.mockResponse({
       type: "success",
