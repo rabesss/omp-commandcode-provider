@@ -117,26 +117,31 @@ through qualified `--model commandcode/<model-id>` selectors.
 ## Models
 
 The committed registry matches the Command Code Provider API model list checked
-for this adaptation and exposes all 23 entries:
+for this adaptation and exposes all 30 entries:
 
 | Family | Model IDs |
 | --- | --- |
-| Anthropic | `claude-sonnet-4-6`, `claude-opus-4-7`, `claude-haiku-4-5-20251001` |
+| Anthropic | `claude-sonnet-4-6`, `claude-fable-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-haiku-4-5-20251001` |
 | OpenAI | `gpt-5.5`, `gpt-5.4`, `gpt-5.3-codex`, `gpt-5.4-mini` |
 | DeepSeek | `deepseek/deepseek-v4-pro`, `deepseek/deepseek-v4-flash` |
-| Moonshot | `moonshotai/Kimi-K2.6`, `moonshotai/Kimi-K2.5` |
+| Moonshot | `moonshotai/Kimi-K2.7-Code`, `moonshotai/Kimi-K2.6`, `moonshotai/Kimi-K2.5` |
 | Z.AI | `zai-org/GLM-5.1`, `zai-org/GLM-5` |
-| MiniMax | `MiniMaxAI/MiniMax-M2.7`, `MiniMaxAI/MiniMax-M2.5` |
-| Qwen | `Qwen/Qwen3.6-Max-Preview`, `Qwen/Qwen3.6-Plus`, `Qwen/Qwen3.7-Max` |
-| StepFun | `stepfun/Step-3.5-Flash` |
+| MiniMax | `MiniMaxAI/MiniMax-M3`, `MiniMaxAI/MiniMax-M2.7`, `MiniMaxAI/MiniMax-M2.5` |
+| Qwen | `Qwen/Qwen3.6-Max-Preview`, `Qwen/Qwen3.6-Plus`, `Qwen/Qwen3.7-Max`, `Qwen/Qwen3.7-Plus` |
+| StepFun | `stepfun/Step-3.7-Flash`, `stepfun/Step-3.5-Flash` |
 | Xiaomi | `xiaomi/mimo-v2.5-pro`, `xiaomi/mimo-v2.5` |
 | Google | `google/gemini-3.5-flash`, `google/gemini-3.1-flash-lite` |
+| NVIDIA | `nvidia/nemotron-3-ultra-550b-a55b` |
 
 The extension applies two runtime metadata corrections without altering the
 audited registry: `gpt-5.3-codex` is exposed with a `272K` usable input
 context because its `128K` output budget is separate in OMP, and the DeepSeek
 models are exposed with `200K` maximum output because the Command Code gateway
 currently rejects larger `max_tokens` requests.
+
+The provider also registers vision-capable models with `["text", "image"]`
+modalities so OMP can route image-enabled tasks (for example `inspect_image`)
+to models documented as multimodal in Command Code docs.
 
 When Command Code changes its live model list, check it without installing or
 executing npm package contents:

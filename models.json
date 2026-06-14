@@ -71,6 +71,46 @@
       "vendorLabel": null
     },
     {
+      "key": "FABLE_5",
+      "id": "claude-fable-5",
+      "provider": "anthropic",
+      "spec": "chatComplete",
+      "label": "Claude Fable 5",
+      "name": "Claude Fable 5",
+      "description": "most capable for demanding reasoning and long-horizon agents",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "vendorLabel": null
+    },
+    {
+      "key": "OPUS_4_8",
+      "id": "claude-opus-4-8",
+      "provider": "anthropic",
+      "spec": "chatComplete",
+      "label": "Claude Opus 4.8",
+      "name": "Claude Opus 4.8",
+      "description": "most capable model for complex reasoning and long-horizon agentic coding",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "vendorLabel": null
+    },
+    {
       "key": "OPUS_4_7",
       "id": "claude-opus-4-7",
       "provider": "anthropic",
@@ -180,6 +220,54 @@
       "vendorLabel": null
     },
     {
+      "key": "DEEPSEEK_V4_PRO",
+      "id": "deepseek/deepseek-v4-pro",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "DeepSeek V4 Pro",
+      "name": "DeepSeek V4 Pro",
+      "description": "hybrid-attention long-context reasoning",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "high",
+        "max"
+      ],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 384000,
+      "vendorLabel": null
+    },
+    {
+      "key": "DEEPSEEK_V4_FLASH",
+      "id": "deepseek/deepseek-v4-flash",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "DeepSeek V4 Flash",
+      "name": "DeepSeek V4 Flash",
+      "description": "fast hybrid-attention reasoning",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "high",
+        "max"
+      ],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 384000,
+      "vendorLabel": null
+    },
+    {
+      "key": "KIMI_K2_7_CODE",
+      "id": "moonshotai/Kimi-K2.7-Code",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Kimi K2.7 Code",
+      "name": "Kimi K2.7 Code",
+      "description": "long-horizon coding with efficient reasoning",
+      "reasoning": false,
+      "reasoningEfforts": null,
+      "contextWindow": 256000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": null
+    },
+    {
       "key": "KIMI_K2_6",
       "id": "moonshotai/Kimi-K2.6",
       "provider": "vercel-ai-gateway",
@@ -236,6 +324,20 @@
       "vendorLabel": null
     },
     {
+      "key": "MINIMAX_M3",
+      "id": "MiniMaxAI/MiniMax-M3",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "MiniMax M3",
+      "name": "MiniMax M3",
+      "description": "frontier coding, agents, and native multimodality",
+      "reasoning": false,
+      "reasoningEfforts": null,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": null
+    },
+    {
       "key": "MINIMAX_M2_7",
       "id": "MiniMaxAI/MiniMax-M2.7",
       "provider": "vercel-ai-gateway",
@@ -264,37 +366,31 @@
       "vendorLabel": null
     },
     {
-      "key": "DEEPSEEK_V4_PRO",
-      "id": "deepseek/deepseek-v4-pro",
-      "provider": "vercel-ai-gateway",
+      "key": "MIMO_V2_5_PRO",
+      "id": "xiaomi/mimo-v2.5-pro",
+      "provider": "baseten",
       "spec": "chatComplete",
-      "label": "DeepSeek V4 Pro",
-      "name": "DeepSeek V4 Pro",
-      "description": "hybrid-attention long-context reasoning",
+      "label": "MiMo V2.5 Pro",
+      "name": "MiMo V2.5 Pro",
+      "description": "high-capability long-context agentic coding",
       "reasoning": true,
-      "reasoningEfforts": [
-        "high",
-        "max"
-      ],
+      "reasoningEfforts": null,
       "contextWindow": 1000000,
-      "maxOutputTokens": 384000,
+      "maxOutputTokens": 65536,
       "vendorLabel": null
     },
     {
-      "key": "DEEPSEEK_V4_FLASH",
-      "id": "deepseek/deepseek-v4-flash",
-      "provider": "vercel-ai-gateway",
+      "key": "MIMO_V2_5",
+      "id": "xiaomi/mimo-v2.5",
+      "provider": "baseten",
       "spec": "chatComplete",
-      "label": "DeepSeek V4 Flash",
-      "name": "DeepSeek V4 Flash",
-      "description": "fast hybrid-attention reasoning",
+      "label": "MiMo V2.5",
+      "name": "MiMo V2.5",
+      "description": "efficient long-context agentic coding",
       "reasoning": true,
-      "reasoningEfforts": [
-        "high",
-        "max"
-      ],
+      "reasoningEfforts": null,
       "contextWindow": 1000000,
-      "maxOutputTokens": 384000,
+      "maxOutputTokens": 65536,
       "vendorLabel": null
     },
     {
@@ -340,6 +436,34 @@
       "vendorLabel": null
     },
     {
+      "key": "QWEN_3_7_PLUS",
+      "id": "Qwen/Qwen3.7-Plus",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Qwen 3.7 Plus",
+      "name": "Qwen 3.7 Plus",
+      "description": "agentic coding and reasoning at lower cost",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": null
+    },
+    {
+      "key": "STEP_3_7_FLASH",
+      "id": "stepfun/Step-3.7-Flash",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Step 3.7 Flash",
+      "name": "Step 3.7 Flash",
+      "description": "multimodal sparse-MoE reasoning",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 256000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": null
+    },
+    {
       "key": "STEP_3_5_FLASH",
       "id": "stepfun/Step-3.5-Flash",
       "provider": "vercel-ai-gateway",
@@ -347,34 +471,6 @@
       "label": "Step 3.5 Flash",
       "name": "Step 3.5 Flash",
       "description": "fast sparse-MoE agentic reasoning",
-      "reasoning": true,
-      "reasoningEfforts": null,
-      "contextWindow": 1000000,
-      "maxOutputTokens": 65536,
-      "vendorLabel": null
-    },
-    {
-      "key": "MIMO_V2_5_PRO",
-      "id": "xiaomi/mimo-v2.5-pro",
-      "provider": "baseten",
-      "spec": "chatComplete",
-      "label": "MiMo V2.5 Pro",
-      "name": "MiMo V2.5 Pro",
-      "description": "high-capability long-context agentic coding",
-      "reasoning": true,
-      "reasoningEfforts": null,
-      "contextWindow": 1000000,
-      "maxOutputTokens": 65536,
-      "vendorLabel": null
-    },
-    {
-      "key": "MIMO_V2_5",
-      "id": "xiaomi/mimo-v2.5",
-      "provider": "baseten",
-      "spec": "chatComplete",
-      "label": "MiMo V2.5",
-      "name": "MiMo V2.5",
-      "description": "efficient long-context agentic coding",
       "reasoning": true,
       "reasoningEfforts": null,
       "contextWindow": 1000000,
@@ -416,6 +512,20 @@
       "contextWindow": 1000000,
       "maxOutputTokens": 65536,
       "vendorLabel": "Google"
+    },
+    {
+      "key": "NEMOTRON_3_ULTRA",
+      "id": "nvidia/nemotron-3-ultra-550b-a55b",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Nemotron 3 Ultra",
+      "name": "Nemotron 3 Ultra",
+      "description": "open reasoning model for long-running autonomous agents",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "NVIDIA"
     }
   ],
   "pricing": [
@@ -688,6 +798,76 @@
       "cacheWrite5mCost": 0,
       "cacheWrite1hCost": 0,
       "cacheHitCost": 0.0028
+    },
+    {
+      "provider": "Anthropic",
+      "id": "anthropic:claude-fable-5",
+      "category": "premium",
+      "promptCost": 10,
+      "completionCost": 50,
+      "cacheWrite5mCost": 12.5,
+      "cacheWrite1hCost": 12.5,
+      "cacheHitCost": 1
+    },
+    {
+      "provider": "Anthropic",
+      "id": "anthropic:claude-opus-4-8",
+      "category": "premium",
+      "promptCost": 5,
+      "completionCost": 25,
+      "cacheWrite5mCost": 6.25,
+      "cacheWrite1hCost": 6.25,
+      "cacheHitCost": 0.5
+    },
+    {
+      "provider": "baseten",
+      "id": "baseten:moonshotai/Kimi-K2.7-Code",
+      "category": "opensource",
+      "promptCost": 0.95,
+      "completionCost": 4,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.19
+    },
+    {
+      "provider": "baseten",
+      "id": "baseten:MiniMaxAI/MiniMax-M3",
+      "category": "opensource",
+      "promptCost": 0.3,
+      "completionCost": 1.2,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.06
+    },
+    {
+      "provider": "baseten",
+      "id": "baseten:Qwen/Qwen3.7-Plus",
+      "category": "opensource",
+      "promptCost": 0.4,
+      "completionCost": 1.6,
+      "cacheWrite5mCost": 0.5,
+      "cacheWrite1hCost": 0.5,
+      "cacheHitCost": 0.08
+    },
+    {
+      "provider": "baseten",
+      "id": "baseten:stepfun/Step-3.7-Flash",
+      "category": "opensource",
+      "promptCost": 0.2,
+      "completionCost": 1.15,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.04
+    },
+    {
+      "provider": "baseten",
+      "id": "baseten:nvidia/nemotron-3-ultra-550b-a55b",
+      "category": "opensource",
+      "promptCost": 0.37,
+      "completionCost": 1.08,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.14
     }
   ]
 }
