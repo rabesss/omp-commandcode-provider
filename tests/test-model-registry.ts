@@ -4,6 +4,14 @@ import { describe, it } from "node:test"
 import commandCodeExtension from "../index.ts"
 import modelsJson from "../models.json" with { type: "json" }
 
+function pricingForModelId(modelId: string) {
+  return modelsJson.pricing.find((entry) => {
+    const colonIdx = entry.id.indexOf(":")
+    const pricingModelId = colonIdx > 0 ? entry.id.slice(colonIdx + 1) : entry.id
+    return pricingModelId === modelId || entry.id === modelId
+  })
+}
+
 const expectedModels = [
   "claude-sonnet-4-6",
   "claude-fable-5",
@@ -111,5 +119,14 @@ describe("Command Code model registry", () => {
       providerConfig?.models?.find((model) => model.id === "deepseek/deepseek-v4-flash")?.input,
       ["text"],
     )
+  })
+
+  it("resolves a pricing row for every committed model id", () => {
+    for (const model of modelsJson.models) {
+      assert.ok(
+        pricingForModelId(model.id),
+        `missing pricing row for model id ${model.id}`,
+      )
+    }
   })
 })

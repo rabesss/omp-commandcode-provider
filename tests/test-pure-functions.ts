@@ -290,6 +290,26 @@ describe("messagesToCC()", () => {
     ])
   })
 
+  it("emits a placeholder when vision models receive malformed image data", () => {
+    const result = messagesToCC(
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Describe this screenshot" },
+            { type: "image", data: "", mimeType: "image/png" },
+          ],
+        },
+      ],
+      { supportsVision: true },
+    )
+
+    assert.deepEqual(objectAt(result, ["0", "content"]), [
+      { type: "text", text: "Describe this screenshot" },
+      { type: "text", text: "[image omitted: attachment had no image data]" },
+    ])
+  })
+
   it("preserves pre-encoded data URLs for vision models", () => {
     const result = messagesToCC(
       [

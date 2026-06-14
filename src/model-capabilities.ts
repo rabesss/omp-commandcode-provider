@@ -5,7 +5,9 @@ export const TEXT_IMAGE_INPUT = ["text", "image"] as const
  * Vision-capable Command Code models (matches command-code CLI inputModalities).
  * Source: command-code@0.37.2 model catalog.
  */
-export const VISION_MODEL_IDS = new Set<string>([
+export type ModelInputModalities = typeof TEXT_INPUT | typeof TEXT_IMAGE_INPUT
+
+export const VISION_MODEL_IDS: ReadonlySet<string> = new Set<string>([
   "claude-sonnet-4-6",
   "claude-fable-5",
   "claude-opus-4-8",
@@ -31,6 +33,6 @@ export function modelSupportsVision(modelId: string): boolean {
   return VISION_MODEL_IDS.has(modelId)
 }
 
-export function modelInputModalities(modelId: string): readonly string[] {
+export function modelInputModalities(modelId: string): ModelInputModalities {
   return modelSupportsVision(modelId) ? TEXT_IMAGE_INPUT : TEXT_INPUT
 }

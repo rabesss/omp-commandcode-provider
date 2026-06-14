@@ -5,6 +5,7 @@ import { join } from "node:path"
 import type { MessageLike, StopReason, ToolLike } from "./types.ts"
 
 const NON_VISION_IMAGE_PLACEHOLDER = "[image omitted: model does not support vision]"
+const MALFORMED_IMAGE_PLACEHOLDER = "[image omitted: attachment had no image data]"
 const DEFAULT_IMAGE_MIME_TYPE = "image/png"
 
 export interface MessagesToCCOptions {
@@ -274,6 +275,7 @@ function userContentToCC(content: unknown, supportsVision: boolean): unknown {
   type CCUserPart = { type: "text"; text: string } | { type: "image"; image: string }
   const parts: CCUserPart[] = []
   let omittedImages = false
+  let malformedImages = false
 
   for (const part of recordArray(content)) {
     if (part.type === "text") {
@@ -284,13 +286,18 @@ function userContentToCC(content: unknown, supportsVision: boolean): unknown {
     if (part.type === "image") {
       if (supportsVision) {
         const imagePart = imagePartToCC(part)
-        if (imagePart) parts.push(imagePart)
+        if (imagePart) {
+          parts.push(imagePart)
+        } else {
+          malformedImages = true
+        }
       } else {
         omittedImages = true
       }
     }
   }
 
+  if (malformedImages) parts.push({ type: "text", text: MALFORMED_IMAGE_PLACEHOLDER })
   if (omittedImages) parts.push({ type: "text", text: NON_VISION_IMAGE_PLACEHOLDER })
   if (parts.length === 0) return ""
 
