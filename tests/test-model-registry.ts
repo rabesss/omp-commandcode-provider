@@ -96,11 +96,15 @@ describe("Command Code model registry", () => {
       ["text", "image"],
     )
     assert.deepEqual(
-      providerConfig?.models?.find((model) => model.id === "google/gemini-3.5-flash")?.input,
+      providerConfig?.models?.find((model) => model.id === "gpt-5.3-codex")?.input,
       ["text", "image"],
     )
     assert.deepEqual(
-      providerConfig?.models?.find((model) => model.id === "stepfun/Step-3.7-Flash")?.input,
+      providerConfig?.models?.find((model) => model.id === "google/gemini-3.1-flash-lite")?.input,
+      ["text", "image"],
+    )
+    assert.deepEqual(
+      providerConfig?.models?.find((model) => model.id === "moonshotai/Kimi-K2.7-Code")?.input,
       ["text", "image"],
     )
     assert.deepEqual(

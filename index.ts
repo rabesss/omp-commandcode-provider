@@ -15,7 +15,12 @@
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent"
 
 import modelsJsonData from "./models.json" with { type: "json" }
-import { COMMAND_CODE_CLI_VERSION, createStreamCommandCode, DEFAULT_API_BASE } from "./src/core.ts"
+import {
+  COMMAND_CODE_CLI_VERSION,
+  createStreamCommandCode,
+  DEFAULT_API_BASE,
+  modelInputModalities,
+} from "./src/core.ts"
 import { getApiKey, login, refreshToken } from "./src/oauth.ts"
 import { calculateCost, createAssistantMessageEventStream } from "./src/runtime.ts"
 
@@ -61,26 +66,6 @@ const MODEL_OVERRIDES: Record<string, { contextWindow?: number; maxTokens?: numb
   // Command Code currently rejects params.max_tokens above 200K.
   "deepseek/deepseek-v4-pro": { maxTokens: 200_000 },
   "deepseek/deepseek-v4-flash": { maxTokens: 200_000 },
-}
-
-const TEXT_INPUT = ["text"] as const
-const TEXT_IMAGE_INPUT = ["text", "image"] as const
-const MODEL_INPUT_MODALITIES: Record<string, typeof TEXT_IMAGE_INPUT> = {
-  "claude-sonnet-4-6": TEXT_IMAGE_INPUT,
-  "claude-fable-5": TEXT_IMAGE_INPUT,
-  "claude-opus-4-8": TEXT_IMAGE_INPUT,
-  "claude-opus-4-7": TEXT_IMAGE_INPUT,
-  "claude-haiku-4-5-20251001": TEXT_IMAGE_INPUT,
-  "gpt-5.5": TEXT_IMAGE_INPUT,
-  "gpt-5.4": TEXT_IMAGE_INPUT,
-  "gpt-5.3-codex": TEXT_IMAGE_INPUT,
-  "gpt-5.4-mini": TEXT_IMAGE_INPUT,
-  "moonshotai/Kimi-K2.6": TEXT_IMAGE_INPUT,
-  "moonshotai/Kimi-K2.5": TEXT_IMAGE_INPUT,
-  "MiniMaxAI/MiniMax-M3": TEXT_IMAGE_INPUT,
-  "stepfun/Step-3.7-Flash": TEXT_IMAGE_INPUT,
-  "google/gemini-3.5-flash": TEXT_IMAGE_INPUT,
-  "google/gemini-3.1-flash-lite": TEXT_IMAGE_INPUT,
 }
 
 // ---------------------------------------------------------------------------
@@ -155,7 +140,7 @@ export default function (pi: ExtensionAPI) {
       id: model.id,
       name: model.name,
       reasoning: model.reasoning,
-      input: MODEL_INPUT_MODALITIES[model.id] ?? TEXT_INPUT,
+      input: modelInputModalities(model.id),
       cost: model.cost,
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,

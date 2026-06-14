@@ -141,7 +141,10 @@ currently rejects larger `max_tokens` requests.
 
 The provider also registers vision-capable models with `["text", "image"]`
 modalities so OMP can route image-enabled tasks (for example `inspect_image`)
-to models documented as multimodal in Command Code docs.
+to models that support vision in the Command Code CLI catalog. For those models,
+user image blocks are serialized to Command Code's `{ type: "image", image:
+"data:<mime>;base64,..." }` wire format; text-only models keep a placeholder
+instead of silently dropping attachments.
 
 When Command Code changes its live model list, check it without installing or
 executing npm package contents:
