@@ -218,7 +218,7 @@ async function runRpcQuery(timeoutMs = 30_000) {
 
 try {
   console.log("[omp-local] list models through real extension")
-  const list = await runOmp(["--extension", EXT_PATH, "--list-models"], 20_000)
+  const list = await runOmp(["models", "commandcode", "--extension", EXT_PATH], 20_000)
   assert.equal(list.code, 0, list.stderr)
   assert.match(list.stdout, /commandcode/)
   assert.match(list.stdout, /deepseek\/deepseek-v4-flash/)

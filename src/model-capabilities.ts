@@ -3,7 +3,7 @@ export const TEXT_IMAGE_INPUT = ["text", "image"] as const
 
 /**
  * Vision-capable Command Code models (matches command-code CLI inputModalities).
- * Source: command-code@0.37.2 model catalog.
+ * Source: command-code@0.40.8 model catalog.
  */
 export type ModelInputModalities = typeof TEXT_INPUT | typeof TEXT_IMAGE_INPUT
 
@@ -18,6 +18,7 @@ export const VISION_MODEL_IDS: ReadonlySet<string> = new Set<string>([
   "gpt-5.3-codex",
   "gpt-5.4-mini",
   "moonshotai/Kimi-K2.7-Code",
+  "moonshotai/Kimi-K2.7-Code-Highspeed",
   "moonshotai/Kimi-K2.6",
   "moonshotai/Kimi-K2.5",
   "MiniMaxAI/MiniMax-M3",
@@ -27,6 +28,7 @@ export const VISION_MODEL_IDS: ReadonlySet<string> = new Set<string>([
   "stepfun/Step-3.7-Flash",
   "google/gemini-3.5-flash",
   "google/gemini-3.1-flash-lite",
+  "sakana/fugu-ultra",
 ])
 
 export function modelSupportsVision(modelId: string): boolean {

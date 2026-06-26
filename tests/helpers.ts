@@ -112,6 +112,7 @@ export function createTestDeps(overrides: Partial<CoreDependencies> = {}): TestD
     now: () => new Date("2026-05-05T12:00:00Z").getTime(),
     uuid: () => "00000000-0000-4000-8000-000000000000",
     cwd: () => "/repo",
+    delay: async () => undefined,
     ...overrides,
   })
   return { streamCommandCode, calculatedUsages }
@@ -124,12 +125,14 @@ type SuccessPlan = {
   chunks?: string[]
   delays?: number[]
   hangAfterLast?: boolean
+  responseDelay?: number
 }
 
 type ErrorPlan = {
   type: "error"
   status: number
   body: string
+  headers?: Record<string, string>
 }
 
 export type ResponsePlan = SuccessPlan | ErrorPlan
@@ -146,6 +149,7 @@ function headersToRecord(headers: IncomingHttpHeaders): Record<string, string> {
 export interface MockCommandCodeServer {
   baseUrl(): string
   mockResponse(plan: ResponsePlan): void
+  mockResponseQueue(plans: ResponsePlan[]): void
   reset(): void
   close(): Promise<void>
   lastRequestBody(): unknown
@@ -155,7 +159,7 @@ export interface MockCommandCodeServer {
 }
 
 export async function startMockCommandCodeServer(): Promise<MockCommandCodeServer> {
-  let nextPlan: ResponsePlan = { type: "success", events: [] }
+  let planQueue: ResponsePlan[] = [{ type: "success", events: [] }]
   let lastBody: unknown
   let lastHeaders: Record<string, string> = {}
   let requests = 0
@@ -183,9 +187,9 @@ export async function startMockCommandCodeServer(): Promise<MockCommandCodeServe
         lastBody = undefined
       }
 
-      const plan = nextPlan
+      const plan = planQueue.length > 1 ? planQueue.shift()! : planQueue[0]
       if (plan.type === "error") {
-        res.writeHead(plan.status, { "Content-Type": "text/plain" })
+        res.writeHead(plan.status, { "Content-Type": "text/plain", ...plan.headers })
         res.end(plan.body)
         return
       }
@@ -223,7 +227,11 @@ export async function startMockCommandCodeServer(): Promise<MockCommandCodeServe
         }
       }
 
-      sendNext()
+      if (plan.responseDelay) {
+        setTimeout(sendNext, plan.responseDelay)
+      } else {
+        sendNext()
+      }
     })
   })
 
@@ -238,10 +246,13 @@ export async function startMockCommandCodeServer(): Promise<MockCommandCodeServe
   return {
     baseUrl: () => `http://127.0.0.1:${port}`,
     mockResponse(plan: ResponsePlan) {
-      nextPlan = plan
+      planQueue = [plan]
+    },
+    mockResponseQueue(plans: ResponsePlan[]) {
+      planQueue = [...plans]
     },
     reset() {
-      nextPlan = { type: "success", events: [] }
+      planQueue = [{ type: "success", events: [] }]
       lastBody = undefined
       lastHeaders = {}
       requests = 0

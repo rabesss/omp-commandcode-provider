@@ -159,7 +159,7 @@
         "high",
         "xhigh"
       ],
-      "contextWindow": 256000,
+      "contextWindow": 200000,
       "maxOutputTokens": 128000,
       "vendorLabel": null
     },
@@ -260,10 +260,24 @@
       "spec": "chatComplete",
       "label": "Kimi K2.7 Code",
       "name": "Kimi K2.7 Code",
-      "description": "long-horizon coding with efficient reasoning",
-      "reasoning": false,
+      "description": "improved long-horizon coding with vision",
+      "reasoning": true,
       "reasoningEfforts": null,
       "contextWindow": 256000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": null
+    },
+    {
+      "key": "KIMI_K2_7_CODE_HIGHSPEED",
+      "id": "moonshotai/Kimi-K2.7-Code-Highspeed",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Kimi K2.7 Code HighSpeed",
+      "name": "Kimi K2.7 Code HighSpeed",
+      "description": "high-speed long-horizon coding with vision",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 262000,
       "maxOutputTokens": 65536,
       "vendorLabel": null
     },
@@ -292,6 +306,37 @@
       "reasoning": false,
       "reasoningEfforts": null,
       "contextWindow": 256000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": null
+    },
+    {
+      "key": "GLM_5_2",
+      "id": "zai-org/GLM-5.2",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "GLM-5.2",
+      "name": "GLM-5.2",
+      "description": "powerful coding with 1M context and long-horizon tasks",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "high",
+        "max"
+      ],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": null
+    },
+    {
+      "key": "GLM_5_2_FAST",
+      "id": "zai-org/GLM-5.2-Fast",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "GLM-5.2 Fast",
+      "name": "GLM-5.2 Fast",
+      "description": "high-throughput GLM-5.2 with 1M context",
+      "reasoning": false,
+      "reasoningEfforts": null,
+      "contextWindow": 1000000,
       "maxOutputTokens": 65536,
       "vendorLabel": null
     },
@@ -347,7 +392,7 @@
       "description": "end-to-end software engineering agent",
       "reasoning": false,
       "reasoningEfforts": null,
-      "contextWindow": 1048576,
+      "contextWindow": 200000,
       "maxOutputTokens": 65536,
       "vendorLabel": null
     },
@@ -403,7 +448,7 @@
       "description": "vibe coding & efficient agent execution",
       "reasoning": true,
       "reasoningEfforts": null,
-      "contextWindow": 1000000,
+      "contextWindow": 200000,
       "maxOutputTokens": 65536,
       "vendorLabel": null
     },
@@ -417,7 +462,7 @@
       "description": "agentic coding & reasoning",
       "reasoning": true,
       "reasoningEfforts": null,
-      "contextWindow": 1000000,
+      "contextWindow": 200000,
       "maxOutputTokens": 65536,
       "vendorLabel": null
     },
@@ -512,6 +557,23 @@
       "contextWindow": 1000000,
       "maxOutputTokens": 65536,
       "vendorLabel": "Google"
+    },
+    {
+      "key": "FUGU_ULTRA",
+      "id": "sakana/fugu-ultra",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Fugu Ultra",
+      "name": "Fugu Ultra",
+      "description": "multi-agent orchestration across frontier models",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "high",
+        "xhigh"
+      ],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "Sakana"
     },
     {
       "key": "NEMOTRON_3_ULTRA",
@@ -711,6 +773,26 @@
     },
     {
       "provider": "baseten",
+      "id": "baseten:zai-org/GLM-5.2",
+      "category": "opensource",
+      "promptCost": 1.4,
+      "completionCost": 4.4,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.26
+    },
+    {
+      "provider": "baseten",
+      "id": "baseten:zai-org/GLM-5.2-Fast",
+      "category": "opensource",
+      "promptCost": 3,
+      "completionCost": 10.25,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.5
+    },
+    {
+      "provider": "baseten",
       "id": "baseten:MiniMaxAI/MiniMax-M2.7",
       "category": "opensource",
       "promptCost": 0.3,
@@ -831,6 +913,16 @@
     },
     {
       "provider": "baseten",
+      "id": "baseten:moonshotai/Kimi-K2.7-Code-Highspeed",
+      "category": "opensource",
+      "promptCost": 1.9,
+      "completionCost": 8,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.38
+    },
+    {
+      "provider": "baseten",
       "id": "baseten:MiniMaxAI/MiniMax-M3",
       "category": "opensource",
       "promptCost": 0.3,
@@ -858,6 +950,16 @@
       "cacheWrite5mCost": 0,
       "cacheWrite1hCost": 0,
       "cacheHitCost": 0.04
+    },
+    {
+      "provider": "Sakana",
+      "id": "sakana:sakana/fugu-ultra",
+      "category": "premium",
+      "promptCost": 5,
+      "completionCost": 30,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.5
     },
     {
       "provider": "baseten",

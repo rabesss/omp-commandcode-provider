@@ -13,8 +13,8 @@
  */
 
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent"
+import { readFileSync } from "node:fs"
 
-import modelsJsonData from "./models.json" with { type: "json" }
 import {
   COMMAND_CODE_CLI_VERSION,
   createStreamCommandCode,
@@ -25,6 +25,7 @@ import { getApiKey, login, refreshToken } from "./src/oauth.ts"
 import { calculateCost, createAssistantMessageEventStream } from "./src/runtime.ts"
 
 const API_BASE = process.env.COMMANDCODE_API_BASE ?? DEFAULT_API_BASE
+const modelsJsonData = JSON.parse(readFileSync(new URL("./models.json", import.meta.url), "utf8"))
 
 // ---------------------------------------------------------------------------
 // Load model definitions from models.json

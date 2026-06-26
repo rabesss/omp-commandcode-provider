@@ -68,6 +68,23 @@ describe("streamCommandCode — auth", () => {
 
     assert.equal(server.lastRequestHeaders().authorization, "Bearer option-key")
   })
+
+  it("ignores literal host env-var placeholders and falls back to env", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+    })
+    const { streamCommandCode } = createTestDeps({
+      apiBase: server.baseUrl(),
+      env: { COMMANDCODE_API_KEY: "env-key" },
+    })
+
+    await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), { apiKey: "COMMANDCODE_API_KEY" }),
+    )
+
+    assert.equal(server.lastRequestHeaders().authorization, "Bearer env-key")
+  })
 })
 
 describe("streamCommandCode — successful streams", () => {
@@ -253,7 +270,7 @@ describe("streamCommandCode — request serialization", () => {
 
     const headers = server.lastRequestHeaders()
     assert.equal(headers.authorization, "Bearer mock-key")
-    assert.equal(headers["x-command-code-version"], "0.27.2")
+    assert.equal(headers["x-command-code-version"], "0.40.8")
     assert.equal(headers["x-session-id"], "00000000-0000-4000-8000-000000000000")
   })
 

@@ -25,8 +25,11 @@ const expectedModels = [
   "deepseek/deepseek-v4-pro",
   "deepseek/deepseek-v4-flash",
   "moonshotai/Kimi-K2.7-Code",
+  "moonshotai/Kimi-K2.7-Code-Highspeed",
   "moonshotai/Kimi-K2.6",
   "moonshotai/Kimi-K2.5",
+  "zai-org/GLM-5.2",
+  "zai-org/GLM-5.2-Fast",
   "zai-org/GLM-5.1",
   "zai-org/GLM-5",
   "MiniMaxAI/MiniMax-M3",
@@ -42,6 +45,7 @@ const expectedModels = [
   "stepfun/Step-3.5-Flash",
   "google/gemini-3.5-flash",
   "google/gemini-3.1-flash-lite",
+  "sakana/fugu-ultra",
   "nvidia/nemotron-3-ultra-550b-a55b",
 ]
 
@@ -116,7 +120,20 @@ describe("Command Code model registry", () => {
       ["text", "image"],
     )
     assert.deepEqual(
+      providerConfig?.models?.find((model) => model.id === "moonshotai/Kimi-K2.7-Code-Highspeed")
+        ?.input,
+      ["text", "image"],
+    )
+    assert.deepEqual(
+      providerConfig?.models?.find((model) => model.id === "sakana/fugu-ultra")?.input,
+      ["text", "image"],
+    )
+    assert.deepEqual(
       providerConfig?.models?.find((model) => model.id === "deepseek/deepseek-v4-flash")?.input,
+      ["text"],
+    )
+    assert.deepEqual(
+      providerConfig?.models?.find((model) => model.id === "zai-org/GLM-5.2")?.input,
       ["text"],
     )
   })

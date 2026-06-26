@@ -96,6 +96,20 @@ export interface StreamOptions {
   toolChoice?: unknown
   onPayload?: (payload: unknown, model: ModelLike) => unknown | Promise<unknown>
   onResponse?: (response: ProviderResponseInfo, model: ModelLike) => void | Promise<void>
+  /**
+   * Per-attempt request/stream timeout in milliseconds.
+   */
+  timeoutMs?: number
+  /**
+   * Retries for transient HTTP failures (429, 5xx) and pre-content stream failures.
+   * Default: 0.
+   */
+  maxRetries?: number
+  /**
+   * Maximum server-requested Retry-After delay in milliseconds.
+   * Default: 60000. Set 0 to disable the cap.
+   */
+  maxRetryDelayMs?: number
 }
 
 export type AssistantMessageEvent =
@@ -160,4 +174,5 @@ export interface CoreDependencies {
   now?: () => number
   uuid?: () => string
   homeDir?: () => string
+  delay?: (ms: number, signal: AbortSignal) => Promise<void>
 }

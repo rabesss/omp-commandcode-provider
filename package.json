@@ -19,11 +19,11 @@
     "url": "https://github.com/rabesss/omp-commandcode-provider/issues"
   },
   "scripts": {
-    "test": "node --test tests/test-pure-functions.ts tests/test-oauth.ts tests/test-abort.ts tests/test-stream.ts tests/test-model-registry.ts && node tests/test-omp-local.mjs",
+    "test": "node --test tests/test-pure-functions.ts tests/test-oauth.ts tests/test-abort.ts tests/test-stream.ts tests/test-retry.ts tests/test-model-registry.ts && node tests/test-omp-local.mjs",
     "test:unit": "node --test tests/test-pure-functions.ts tests/test-model-registry.ts",
     "test:oauth": "node --test tests/test-oauth.ts",
     "test:abort": "node --test tests/test-abort.ts",
-    "test:stream": "node --test tests/test-stream.ts",
+    "test:stream": "node --test tests/test-stream.ts tests/test-retry.ts",
     "test:omp-local": "node tests/test-omp-local.mjs",
     "test:live": "node tests/test-live-omp.mjs",
     "models:check": "node scripts/sync-upstream-models.mjs"
