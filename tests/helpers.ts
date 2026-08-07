@@ -109,7 +109,7 @@ export function createTestDeps(overrides: Partial<CoreDependencies> = {}): TestD
     },
     env: {},
     authPaths: [],
-    now: () => new Date("2026-05-05T12:00:00Z").getTime(),
+    now: () => Date.now(),
     uuid: () => "00000000-0000-4000-8000-000000000000",
     cwd: () => "/repo",
     delay: async () => undefined,

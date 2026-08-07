@@ -29,6 +29,47 @@ beforeEach(() => {
 })
 
 describe("streamCommandCode — abort behavior", () => {
+  it("aborts during Retry-After delay without starting another attempt", async () => {
+    server.mockResponse({
+      type: "error",
+      status: 429,
+      body: "rate limited",
+      headers: { "retry-after": "10" },
+    })
+    const controller = new AbortController()
+    let enteredDelay!: () => void
+    const delayStarted = new Promise<void>((resolve) => {
+      enteredDelay = resolve
+    })
+    const { streamCommandCode } = createTestDeps({
+      apiBase: server.baseUrl(),
+      delay: (_ms, signal) =>
+        new Promise<void>((resolve, reject) => {
+          enteredDelay()
+          const onAbort = () => reject(new DOMException("aborted", "AbortError"))
+          signal.addEventListener("abort", onAbort, { once: true })
+          if (signal.aborted) onAbort()
+          void resolve
+        }),
+    })
+
+    const stream = streamCommandCode(makeModel(), makeContext(), {
+      apiKey: "mock-key",
+      signal: controller.signal,
+      maxRetries: 2,
+      maxRetryDelayMs: 0,
+    })
+    const eventsPromise = collectEvents(stream)
+    await delayStarted
+    controller.abort()
+    const events = await eventsPromise
+
+    assert.equal(server.requestCount(), 1)
+    const last = events.at(-1)
+    if (last?.type !== "error") throw new Error("expected error")
+    assert.equal(last.reason, "aborted")
+  })
+
   it("emits aborted error when signal is already aborted", async () => {
     const controller = new AbortController()
     controller.abort()

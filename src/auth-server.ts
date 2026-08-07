@@ -28,6 +28,7 @@ export interface AuthServer {
 }
 
 export interface AuthServerOptions {
+  expectedState: string
   startPort?: number
   portRange?: number
 }
@@ -83,7 +84,7 @@ function closeServer(server: Server) {
  *
  * The server accepts exactly one valid POST to /callback and then closes.
  */
-export async function startAuthServer(options: AuthServerOptions = {}): Promise<AuthServer> {
+export async function startAuthServer(options: AuthServerOptions): Promise<AuthServer> {
   let resolveCallback!: (value: AuthCallback) => void
   let rejectCallback!: (error: Error) => void
 
@@ -144,6 +145,19 @@ export async function startAuthServer(options: AuthServerOptions = {}): Promise<
     req.on("end", () => {
       try {
         const parsed = JSON.parse(body) as Record<string, unknown>
+        const state = typeof parsed.state === "string" ? parsed.state : ""
+
+        if (!state) {
+          res.writeHead(400)
+          res.end(JSON.stringify({ success: false, error: "Missing required fields" }))
+          return
+        }
+
+        if (state !== options.expectedState) {
+          res.writeHead(403)
+          res.end(JSON.stringify({ success: false, error: "State token mismatch" }))
+          return
+        }
 
         if (parsed.error) {
           res.writeHead(200)
@@ -162,9 +176,7 @@ export async function startAuthServer(options: AuthServerOptions = {}): Promise<
         }
 
         const apiKey = typeof parsed.apiKey === "string" ? parsed.apiKey.trim() : ""
-        const state = typeof parsed.state === "string" ? parsed.state : ""
-
-        if (!apiKey || !state) {
+        if (!apiKey) {
           res.writeHead(400)
           res.end(
             JSON.stringify({

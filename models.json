@@ -51,6 +51,26 @@
   ],
   "models": [
     {
+      "key": "SONNET_5",
+      "id": "claude-sonnet-5",
+      "provider": "anthropic",
+      "spec": "chatComplete",
+      "label": "Claude Sonnet 5",
+      "name": "Claude Sonnet 5",
+      "description": "best combo of speed & intelligence (recommended)",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "vendorLabel": null
+    },
+    {
       "key": "SONNET_4_6",
       "id": "claude-sonnet-4-6",
       "provider": "anthropic",
@@ -78,6 +98,26 @@
       "label": "Claude Fable 5",
       "name": "Claude Fable 5",
       "description": "most capable for demanding reasoning and long-horizon agents",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "vendorLabel": null
+    },
+    {
+      "key": "OPUS_5",
+      "id": "claude-opus-5",
+      "provider": "anthropic",
+      "spec": "chatComplete",
+      "label": "Claude Opus 5",
+      "name": "Claude Opus 5",
+      "description": "most intelligent Opus for agents and coding",
       "reasoning": true,
       "reasoningEfforts": [
         "low",
@@ -143,6 +183,66 @@
       "contextWindow": 200000,
       "maxOutputTokens": 64000,
       "vendorLabel": null
+    },
+    {
+      "key": "GPT_5_6_SOL",
+      "id": "gpt-5.6-sol",
+      "provider": "openai",
+      "spec": "responses",
+      "label": "GPT-5.6 Sol",
+      "name": "GPT-5.6 Sol",
+      "description": "frontier model for complex professional work",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "contextWindow": 1050000,
+      "maxOutputTokens": 128000,
+      "vendorLabel": null
+    },
+    {
+      "key": "GPT_5_6_TERRA",
+      "id": "gpt-5.6-terra",
+      "provider": "vercel-ai-gateway",
+      "spec": "responses",
+      "label": "GPT-5.6 Terra",
+      "name": "GPT-5.6 Terra",
+      "description": "balances intelligence and cost",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "contextWindow": 1050000,
+      "maxOutputTokens": 128000,
+      "vendorLabel": "OpenAI"
+    },
+    {
+      "key": "GPT_5_6_LUNA",
+      "id": "gpt-5.6-luna",
+      "provider": "vercel-ai-gateway",
+      "spec": "responses",
+      "label": "GPT-5.6 Luna",
+      "name": "GPT-5.6 Luna",
+      "description": "optimized for cost-sensitive workloads",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "contextWindow": 1050000,
+      "maxOutputTokens": 128000,
+      "vendorLabel": "OpenAI"
     },
     {
       "key": "GPT_5_5",
@@ -251,6 +351,20 @@
       ],
       "contextWindow": 1000000,
       "maxOutputTokens": 384000,
+      "vendorLabel": null
+    },
+    {
+      "key": "KIMI_K3",
+      "id": "moonshotai/Kimi-K3",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Kimi K3",
+      "name": "Kimi K3",
+      "description": "long-horizon coding & knowledge work with 1M context",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
       "vendorLabel": null
     },
     {
@@ -439,30 +553,20 @@
       "vendorLabel": null
     },
     {
-      "key": "QWEN_3_6_MAX_PREVIEW",
-      "id": "Qwen/Qwen3.6-Max-Preview",
+      "key": "QWEN_3_8_MAX",
+      "id": "Qwen/Qwen3.8-Max",
       "provider": "vercel-ai-gateway",
       "spec": "chatComplete",
-      "label": "Qwen 3.6 Max Preview",
-      "name": "Qwen 3.6 Max Preview",
-      "description": "vibe coding & efficient agent execution",
+      "label": "Qwen 3.8 Max",
+      "name": "Qwen 3.8 Max",
+      "description": "autonomous long-horizon coding & professional work",
       "reasoning": true,
-      "reasoningEfforts": null,
-      "contextWindow": 200000,
-      "maxOutputTokens": 65536,
-      "vendorLabel": null
-    },
-    {
-      "key": "QWEN_3_6_PLUS",
-      "id": "Qwen/Qwen3.6-Plus",
-      "provider": "vercel-ai-gateway",
-      "spec": "chatComplete",
-      "label": "Qwen 3.6 Plus",
-      "name": "Qwen 3.6 Plus",
-      "description": "agentic coding & reasoning",
-      "reasoning": true,
-      "reasoningEfforts": null,
-      "contextWindow": 200000,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "xhigh"
+      ],
+      "contextWindow": 1000000,
       "maxOutputTokens": 65536,
       "vendorLabel": null
     },
@@ -495,6 +599,48 @@
       "vendorLabel": null
     },
     {
+      "key": "QWEN_3_7_FLASH",
+      "id": "Qwen/Qwen3.7-Flash",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Qwen 3.7 Flash",
+      "name": "Qwen 3.7 Flash",
+      "description": "fast low-cost agentic coding & reasoning",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": null
+    },
+    {
+      "key": "QWEN_3_6_MAX_PREVIEW",
+      "id": "Qwen/Qwen3.6-Max-Preview",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Qwen 3.6 Max Preview",
+      "name": "Qwen 3.6 Max Preview",
+      "description": "vibe coding & efficient agent execution",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 200000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": null
+    },
+    {
+      "key": "QWEN_3_6_PLUS",
+      "id": "Qwen/Qwen3.6-Plus",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Qwen 3.6 Plus",
+      "name": "Qwen 3.6 Plus",
+      "description": "agentic coding & reasoning",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 200000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": null
+    },
+    {
       "key": "STEP_3_7_FLASH",
       "id": "stepfun/Step-3.7-Flash",
       "provider": "vercel-ai-gateway",
@@ -523,6 +669,38 @@
       "vendorLabel": null
     },
     {
+      "key": "TENCENT_HY3_PAID",
+      "id": "tencent/hy3-paid",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Tencent Hy3",
+      "name": "Tencent Hy3",
+      "description": "sparse-MoE reasoning & agentic tool use",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 262144,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "Tencent"
+    },
+    {
+      "key": "GEMINI_3_6_FLASH",
+      "id": "google/gemini-3.6-flash",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Gemini 3.6 Flash",
+      "name": "Gemini 3.6 Flash",
+      "description": "higher-quality coding & agentic workflows, fewer tokens",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "Google"
+    },
+    {
       "key": "GEMINI_3_5_FLASH",
       "id": "google/gemini-3.5-flash",
       "provider": "vercel-ai-gateway",
@@ -530,6 +708,24 @@
       "label": "Gemini 3.5 Flash",
       "name": "Gemini 3.5 Flash",
       "description": "Pro-level coding proficiency, parallel agentic execution",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "Google"
+    },
+    {
+      "key": "GEMINI_3_5_FLASH_LITE",
+      "id": "google/gemini-3.5-flash-lite",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Gemini 3.5 Flash Lite",
+      "name": "Gemini 3.5 Flash Lite",
+      "description": "upgraded agentic capabilities, ideal for subagents",
       "reasoning": true,
       "reasoningEfforts": [
         "low",
@@ -588,6 +784,108 @@
       "contextWindow": 1000000,
       "maxOutputTokens": 65536,
       "vendorLabel": "NVIDIA"
+    },
+    {
+      "key": "INKLING",
+      "id": "thinkingmachines/inkling",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Inkling",
+      "name": "Inkling",
+      "description": "multimodal MoE reasoning",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 256000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "Thinking Machines"
+    },
+    {
+      "key": "INKLING_SMALL",
+      "id": "thinkingmachines/inkling-small",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Inkling Small",
+      "name": "Inkling Small",
+      "description": "lightweight MoE reasoning at lower cost and latency",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "Thinking Machines"
+    },
+    {
+      "key": "LAGUNA_S_2_1_FREE",
+      "id": "poolside/laguna-s-2.1-free",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Laguna S 2.1",
+      "name": "Laguna S 2.1",
+      "description": "open-weight agentic coding and long-horizon work",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 256000,
+      "maxOutputTokens": 32768,
+      "vendorLabel": "Poolside"
+    },
+    {
+      "key": "MUSE_SPARK_1_1",
+      "id": "meta/muse-spark-1.1",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Muse Spark 1.1",
+      "name": "Muse Spark 1.1",
+      "description": "agentic performance, tool use, and computer use",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 1048576,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "Meta"
+    },
+    {
+      "key": "MUSE_SPARK_1_2",
+      "id": "meta/muse-spark-1.2",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Muse Spark 1.2",
+      "name": "Muse Spark 1.2",
+      "description": "coding-optimized for agentic workflows and large codebases",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 1048576,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "Meta"
+    },
+    {
+      "key": "MUSE_SPARK_1_2_CONTRIBUTOR",
+      "id": "meta/muse-spark-1.2-contributor",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Muse Spark 1.2 Contributor",
+      "name": "Muse Spark 1.2 Contributor",
+      "description": "Muse Spark 1.2 at approximately 95% off",
+      "reasoning": true,
+      "reasoningEfforts": null,
+      "contextWindow": 1048576,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "Meta"
+    },
+    {
+      "key": "GROK_4_5",
+      "id": "xai/grok-4.5",
+      "provider": "vercel-ai-gateway",
+      "spec": "chatComplete",
+      "label": "Grok 4.5",
+      "name": "Grok 4.5",
+      "description": "smartest model for coding, agentic tasks, knowledge work",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "contextWindow": 500000,
+      "maxOutputTokens": 65536,
+      "vendorLabel": "xAI"
     }
   ],
   "pricing": [
@@ -845,11 +1143,11 @@
       "provider": "baseten",
       "id": "baseten:Qwen/Qwen3.7-Max",
       "category": "opensource",
-      "promptCost": 1.25,
-      "completionCost": 3.75,
-      "cacheWrite5mCost": 1.56,
-      "cacheWrite1hCost": 1.56,
-      "cacheHitCost": 0.25
+      "promptCost": 2.5,
+      "completionCost": 7.5,
+      "cacheWrite5mCost": 3.13,
+      "cacheWrite1hCost": 3.13,
+      "cacheHitCost": 0.5
     },
     {
       "provider": "baseten",
@@ -965,11 +1263,191 @@
       "provider": "baseten",
       "id": "baseten:nvidia/nemotron-3-ultra-550b-a55b",
       "category": "opensource",
-      "promptCost": 0.37,
-      "completionCost": 1.08,
+      "promptCost": 0.6,
+      "completionCost": 2.4,
       "cacheWrite5mCost": 0,
       "cacheWrite1hCost": 0,
-      "cacheHitCost": 0.14
+      "cacheHitCost": 0.12
+    },
+    {
+      "provider": "command-code",
+      "id": "claude-sonnet-5",
+      "category": "premium",
+      "promptCost": 2,
+      "completionCost": 10,
+      "cacheWrite5mCost": 2.5,
+      "cacheWrite1hCost": 2.5,
+      "cacheHitCost": 0.2
+    },
+    {
+      "provider": "command-code",
+      "id": "claude-opus-5",
+      "category": "premium",
+      "promptCost": 5,
+      "completionCost": 25,
+      "cacheWrite5mCost": 6.25,
+      "cacheWrite1hCost": 6.25,
+      "cacheHitCost": 0.5
+    },
+    {
+      "provider": "command-code",
+      "id": "gpt-5.6-sol",
+      "category": "premium",
+      "promptCost": 5,
+      "completionCost": 30,
+      "cacheWrite5mCost": 6.25,
+      "cacheWrite1hCost": 6.25,
+      "cacheHitCost": 0.5
+    },
+    {
+      "provider": "command-code",
+      "id": "gpt-5.6-terra",
+      "category": "premium",
+      "promptCost": 1,
+      "completionCost": 6,
+      "cacheWrite5mCost": 1.25,
+      "cacheWrite1hCost": 1.25,
+      "cacheHitCost": 0.1
+    },
+    {
+      "provider": "command-code",
+      "id": "gpt-5.6-luna",
+      "category": "premium",
+      "promptCost": 0.1,
+      "completionCost": 0.6,
+      "cacheWrite5mCost": 0.125,
+      "cacheWrite1hCost": 0.125,
+      "cacheHitCost": 0.01
+    },
+    {
+      "provider": "command-code",
+      "id": "moonshotai/Kimi-K3",
+      "category": "opensource",
+      "promptCost": 3,
+      "completionCost": 15,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.3
+    },
+    {
+      "provider": "command-code",
+      "id": "Qwen/Qwen3.8-Max",
+      "category": "opensource",
+      "promptCost": 2,
+      "completionCost": 6,
+      "cacheWrite5mCost": 2.5,
+      "cacheWrite1hCost": 2.5,
+      "cacheHitCost": 0.25
+    },
+    {
+      "provider": "command-code",
+      "id": "Qwen/Qwen3.7-Flash",
+      "category": "opensource",
+      "promptCost": 0.03,
+      "completionCost": 0.13,
+      "cacheWrite5mCost": 0.038,
+      "cacheWrite1hCost": 0.038,
+      "cacheHitCost": 0.006
+    },
+    {
+      "provider": "command-code",
+      "id": "tencent/hy3-paid",
+      "category": "opensource",
+      "promptCost": 0.14,
+      "completionCost": 0.58,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.035
+    },
+    {
+      "provider": "command-code",
+      "id": "google/gemini-3.6-flash",
+      "category": "premium",
+      "promptCost": 1.5,
+      "completionCost": 7.5,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.15
+    },
+    {
+      "provider": "command-code",
+      "id": "google/gemini-3.5-flash-lite",
+      "category": "premium",
+      "promptCost": 0.3,
+      "completionCost": 2.5,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.03
+    },
+    {
+      "provider": "command-code",
+      "id": "thinkingmachines/inkling",
+      "category": "opensource",
+      "promptCost": 1,
+      "completionCost": 4.05,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.17
+    },
+    {
+      "provider": "command-code",
+      "id": "thinkingmachines/inkling-small",
+      "category": "opensource",
+      "promptCost": 0.5,
+      "completionCost": 1.2,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.1
+    },
+    {
+      "provider": "command-code",
+      "id": "poolside/laguna-s-2.1-free",
+      "category": "free",
+      "promptCost": 0,
+      "completionCost": 0,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0
+    },
+    {
+      "provider": "command-code",
+      "id": "meta/muse-spark-1.1",
+      "category": "premium",
+      "promptCost": 1.25,
+      "completionCost": 4.25,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.15
+    },
+    {
+      "provider": "command-code",
+      "id": "meta/muse-spark-1.2",
+      "category": "premium",
+      "promptCost": 1.25,
+      "completionCost": 4.25,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.15
+    },
+    {
+      "provider": "command-code",
+      "id": "meta/muse-spark-1.2-contributor",
+      "category": "premium",
+      "promptCost": 0.1,
+      "completionCost": 0.2,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.002
+    },
+    {
+      "provider": "command-code",
+      "id": "xai/grok-4.5",
+      "category": "premium",
+      "promptCost": 2,
+      "completionCost": 6,
+      "cacheWrite5mCost": 0,
+      "cacheWrite1hCost": 0,
+      "cacheHitCost": 0.5
     }
   ]
 }

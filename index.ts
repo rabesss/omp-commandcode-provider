@@ -5,7 +5,7 @@
  *
  * Authentication (pick one):
  *   1. Run `/login`, then select Command Code - opens browser to commandcode.ai, auto-stores API key
- *   2. Set COMMANDCODE_API_KEY environment variable
+ *   2. Set COMMAND_CODE_API_KEY (or legacy COMMANDCODE_API_KEY) environment variable
  *   3. Place API key in `~/.commandcode/auth.json` or legacy `~/.pi/agent/auth.json`
  *      as {"apiKey": "user_..."} or {"commandcode": "user_..."}
  *
@@ -94,6 +94,10 @@ const MODELS = modelsJson.models.map((m) => {
     id: m.id,
     name: `${m.name} (CC)`,
     reasoning: m.reasoning,
+    thinking:
+      m.reasoningEfforts && m.reasoningEfforts.length > 0
+        ? { mode: "effort" as const, efforts: m.reasoningEfforts }
+        : undefined,
     contextWindow: override?.contextWindow ?? m.contextWindow,
     maxTokens: override?.maxTokens ?? m.maxOutputTokens,
     cost: {
@@ -123,7 +127,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerProvider("commandcode", {
     name: "Command Code",
     baseUrl: API_BASE,
-    apiKey: "COMMANDCODE_API_KEY",
+    apiKey: "COMMAND_CODE_API_KEY",
     authHeader: true,
     api: "commandcode-custom",
     streamSimple: streamCommandCode,
@@ -141,6 +145,7 @@ export default function (pi: ExtensionAPI) {
       id: model.id,
       name: model.name,
       reasoning: model.reasoning,
+      thinking: model.thinking,
       input: modelInputModalities(model.id),
       cost: model.cost,
       contextWindow: model.contextWindow,

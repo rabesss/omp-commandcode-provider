@@ -58,6 +58,7 @@ export function getApiKey(
   } = {},
 ): string | undefined {
   const env = options.env ?? process.env
+  if (env.COMMAND_CODE_API_KEY) return env.COMMAND_CODE_API_KEY
   if (env.COMMANDCODE_API_KEY) return env.COMMANDCODE_API_KEY
 
   const home = options.homeDir?.() ?? homedir()
@@ -100,8 +101,107 @@ export function getEnvironmentInfo(): string {
   return `${process.platform}-${process.arch}, Node.js ${process.version}`
 }
 
+const LEGACY_SCHEMA_KINDS = new Set([
+  "string",
+  "String",
+  "number",
+  "Number",
+  "boolean",
+  "Boolean",
+  "object",
+  "Object",
+  "array",
+  "Array",
+  "union",
+  "Union",
+  "optional",
+  "Optional",
+])
+
+function containsLegacySchemaShape(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (Array.isArray(value)) return value.some((item) => containsLegacySchemaShape(item, seen))
+  if (!isRecord(value) || seen.has(value)) return false
+  seen.add(value)
+  if (LEGACY_SCHEMA_KINDS.has(stringValue(value.kind) ?? "")) return true
+  const type = stringValue(value.type)
+  if (type && /^[A-Z]/.test(type) && LEGACY_SCHEMA_KINDS.has(type)) return true
+
+  // Recurse only through positions that contain schemas. Annotation/assertion
+  // payloads such as const, default, examples, and enum are arbitrary JSON and
+  // may legitimately contain fields named `kind` or `type`.
+  const schemaMaps = [
+    value.properties,
+    value.patternProperties,
+    value.dependentSchemas,
+    value.$defs,
+    value.definitions,
+  ]
+  for (const schemaMap of schemaMaps) {
+    if (
+      isRecord(schemaMap) &&
+      Object.values(schemaMap).some((item) => containsLegacySchemaShape(item, seen))
+    ) {
+      return true
+    }
+  }
+
+  const schemaArrays = [value.prefixItems, value.anyOf, value.oneOf, value.allOf, value.variants]
+  for (const schemaArray of schemaArrays) {
+    if (
+      Array.isArray(schemaArray) &&
+      schemaArray.some((item) => containsLegacySchemaShape(item, seen))
+    ) {
+      return true
+    }
+  }
+
+  const schemaValues = [
+    value.items,
+    value.additionalProperties,
+    value.unevaluatedProperties,
+    value.propertyNames,
+    value.contains,
+    value.not,
+    value.if,
+    value.then,
+    value.else,
+    value.wrapped,
+    value.inner,
+    value.element,
+  ]
+  return schemaValues.some((item) => containsLegacySchemaShape(item, seen))
+}
+
 export function toJsonSchema(schema: unknown): unknown {
+  if ((typeof schema === "object" && schema !== null) || typeof schema === "function") {
+    const toJsonSchemaMethod = (schema as { toJsonSchema?: unknown }).toJsonSchema
+    if (typeof toJsonSchemaMethod === "function") {
+      try {
+        return toJsonSchema(
+          toJsonSchemaMethod.call(schema, {
+            target: "draft-2020-12",
+            fallback: (context: { base?: unknown }) => context.base ?? {},
+          }),
+        )
+      } catch {
+        return {}
+      }
+    }
+  }
+
   if (!isRecord(schema)) return {}
+
+  // OMP 17 exposes standards-compliant JSON Schema. Forward it losslessly;
+  // only the older `kind` shapes below need conversion.
+  const containsLegacyShape = containsLegacySchemaShape(schema)
+  if (!("kind" in schema) && !containsLegacyShape) {
+    try {
+      const cloned: unknown = JSON.parse(JSON.stringify(schema))
+      return isRecord(cloned) ? cloned : {}
+    } catch {
+      return {}
+    }
+  }
 
   const kind = stringValue(schema.kind) ?? stringValue(schema.type)
   const enumValues = Array.isArray(schema.enum) ? schema.enum : undefined
@@ -260,19 +360,24 @@ export function messagesToCC(
   return out
 }
 
-function imagePartToCC(part: Record<string, unknown>): { type: "image"; image: string } | undefined {
+function imagePartToCC(
+  part: Record<string, unknown>,
+): { type: "image"; image: string; mimeType: string } | undefined {
   const data = stringValue(part.data)
   if (!data) return undefined
 
-  const mimeType = stringValue(part.mimeType) ?? DEFAULT_IMAGE_MIME_TYPE
+  const dataUrlMimeType = /^data:([^;,]+)/.exec(data)?.[1]
+  const mimeType = stringValue(part.mimeType) ?? dataUrlMimeType ?? DEFAULT_IMAGE_MIME_TYPE
   const image = data.startsWith("data:") ? data : `data:${mimeType};base64,${data}`
-  return { type: "image", image }
+  return { type: "image", image, mimeType }
 }
 
 function userContentToCC(content: unknown, supportsVision: boolean): unknown {
   if (typeof content === "string") return content
 
-  type CCUserPart = { type: "text"; text: string } | { type: "image"; image: string }
+  type CCUserPart =
+    | { type: "text"; text: string }
+    | { type: "image"; image: string; mimeType: string }
   const parts: CCUserPart[] = []
   let omittedImages = false
   let malformedImages = false

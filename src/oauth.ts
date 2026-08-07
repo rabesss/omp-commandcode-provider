@@ -9,8 +9,8 @@
  * 5. If browser transfer fails, the user can paste the API key manually
  * 6. The API key is handed back to OMP as provider auth credentials
  *
- * Since Command Code API keys don't expire, we store them as
- * OAuth credentials with a far-future expiry.
+ * OMP 17 accepts a provider login result as a plain API-key string. Legacy
+ * OAuth-shaped credentials remain readable through refreshToken/getApiKey.
  */
 
 import { randomBytes } from "node:crypto"
@@ -96,22 +96,22 @@ export function sanitizeApiKey(input: string): string {
     .trim()
 }
 
-async function promptForApiKey(callbacks: OAuthLoginCallbacks, message: string) {
+async function promptForApiKey(callbacks: OAuthLoginCallbacks, message: string): Promise<string> {
   const apiKey = sanitizeApiKey(await callbacks.onPrompt({ message }))
   if (!apiKey) throw new Error("No Command Code API key provided")
-  return credentialsFromApiKey(apiKey)
+  return apiKey
 }
 
 /**
  * Starts the browser-based login flow for Command Code.
  *
- * Returns OAuth credentials where access == refresh == the user's API key.
- * The keys don't expire, so we set a far-future expiry.
+ * OMP 17 accepts the returned API key directly as provider auth.
  */
-export async function login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
+export async function login(callbacks: OAuthLoginCallbacks): Promise<string> {
+  const stateToken = generateStateToken()
   let authServer
   try {
-    authServer = await startAuthServer()
+    authServer = await startAuthServer({ expectedState: stateToken })
   } catch {
     return promptForApiKey(
       callbacks,
@@ -119,7 +119,6 @@ export async function login(callbacks: OAuthLoginCallbacks): Promise<OAuthCreden
     )
   }
 
-  const stateToken = generateStateToken()
   const callbackUrl = `http://${CALLBACK_HOST}:${authServer.port}/callback`
   const authUrl = `${STUDIO_BASE_URL}/studio/auth/cli?callback=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(stateToken)}`
 
@@ -143,13 +142,7 @@ export async function login(callbacks: OAuthLoginCallbacks): Promise<OAuthCreden
     throw error
   }
 
-  // Validate state token to prevent CSRF.
-  if (callback.state !== stateToken) {
-    authServer.server.close()
-    throw new Error("State token mismatch. Authentication may have been tampered with.")
-  }
-
-  return credentialsFromApiKey(callback.apiKey)
+  return callback.apiKey
 }
 
 /**

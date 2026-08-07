@@ -23,6 +23,19 @@ import {
 import { objectAt } from "./helpers.ts"
 
 describe("getApiKey()", () => {
+  it("prefers canonical COMMAND_CODE_API_KEY over the legacy alias", () => {
+    assert.equal(
+      getApiKey({
+        env: {
+          COMMAND_CODE_API_KEY: "canonical-key",
+          COMMANDCODE_API_KEY: "legacy-key",
+        },
+        authPaths: [],
+      }),
+      "canonical-key",
+    )
+  })
+
   it("uses COMMANDCODE_API_KEY from provided env", () => {
     assert.equal(getApiKey({ env: { COMMANDCODE_API_KEY: "env-key" }, authPaths: [] }), "env-key")
   })
@@ -107,6 +120,70 @@ describe("getEnvironmentInfo()", () => {
 })
 
 describe("toJsonSchema()", () => {
+  it("preserves modern JSON Schema keywords and constraints losslessly", () => {
+    const schema = {
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      $defs: {
+        location: {
+          type: "string",
+          description: "A city name",
+          minLength: 2,
+        },
+      },
+      type: "object",
+      description: "Weather request",
+      properties: {
+        city: { $ref: "#/$defs/location" },
+        units: { oneOf: [{ const: "metric" }, { const: "imperial" }] },
+      },
+      required: ["city"],
+      additionalProperties: false,
+    }
+
+    assert.deepEqual(toJsonSchema(schema), schema)
+  })
+
+  it("does not mistake annotation and assertion payloads for legacy schema nodes", () => {
+    const schema = {
+      const: { kind: "string" },
+      default: { type: "String" },
+      examples: [{ kind: "object" }],
+      enum: [{ type: "Number" }],
+    }
+
+    assert.deepEqual(toJsonSchema(schema), schema)
+  })
+
+  it("uses OMP callable schemas through toJsonSchema()", () => {
+    const converted = {
+      type: "object",
+      properties: { path: { type: "string", pattern: "^/" } },
+      required: ["path"],
+    }
+    const callable = Object.assign(() => undefined, {
+      toJsonSchema: () => converted,
+    })
+
+    assert.deepEqual(toJsonSchema(callable), converted)
+  })
+
+  it("retains conversion for mixed and uppercase legacy schema shapes", () => {
+    assert.deepEqual(
+      toJsonSchema({
+        type: "object",
+        properties: {
+          city: { kind: "string" },
+        },
+      }),
+      {
+        type: "object",
+        properties: { city: { type: "string" } },
+        required: ["city"],
+      },
+    )
+    assert.deepEqual(toJsonSchema({ type: "String" }), { type: "string" })
+  })
+
   it("converts scalar, enum, object, optional, array, and union schema shapes", () => {
     assert.deepEqual(toJsonSchema({ kind: "string" }), { type: "string" })
     assert.deepEqual(toJsonSchema({ kind: "Number" }), { type: "number" })
@@ -286,7 +363,7 @@ describe("messagesToCC()", () => {
 
     assert.deepEqual(objectAt(result, ["0", "content"]), [
       { type: "text", text: "Describe this screenshot" },
-      { type: "image", image: "data:image/png;base64,abc123" },
+      { type: "image", image: "data:image/png;base64,abc123", mimeType: "image/png" },
     ])
   })
 
@@ -322,7 +399,7 @@ describe("messagesToCC()", () => {
     )
 
     assert.deepEqual(objectAt(result, ["0", "content"]), [
-      { type: "image", image: "data:image/jpeg;base64,xyz" },
+      { type: "image", image: "data:image/jpeg;base64,xyz", mimeType: "image/jpeg" },
     ])
   })
 
