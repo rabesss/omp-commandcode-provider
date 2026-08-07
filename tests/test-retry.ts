@@ -209,6 +209,28 @@ describe("streamCommandCode Retry-After", () => {
 })
 
 describe("streamCommandCode timeout", () => {
+  it("uses the injected clock for stream watchdog calculations", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+    })
+    let clockCalls = 0
+    const { streamCommandCode } = createTestDeps({
+      apiBase: server.baseUrl(),
+      now: () => {
+        clockCalls += 1
+        return Date.now()
+      },
+    })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), { apiKey: TEST_API_KEY }),
+    )
+
+    assert.equal(events.at(-1)?.type, "done")
+    assert.ok(clockCalls >= 5, `expected watchdog clock calls, received ${clockCalls}`)
+  })
+
   it("retains attempt-timeout semantics while reading a non-OK response body", async () => {
     const fetchImpl: typeof fetch = async () => {
       const body = new ReadableStream<Uint8Array>({

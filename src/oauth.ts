@@ -105,8 +105,7 @@ async function promptForApiKey(callbacks: OAuthLoginCallbacks, message: string):
 /**
  * Starts the browser-based login flow for Command Code.
  *
- * Returns OAuth credentials where access == refresh == the user's API key.
- * The keys don't expire, so we set a far-future expiry.
+ * OMP 17 accepts the returned API key directly as provider auth.
  */
 export async function login(callbacks: OAuthLoginCallbacks): Promise<string> {
   const stateToken = generateStateToken()

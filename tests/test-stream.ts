@@ -282,7 +282,10 @@ describe("streamCommandCode — request serialization", () => {
       type: "success",
       events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
     })
-    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+    const { streamCommandCode } = createTestDeps({
+      apiBase: server.baseUrl(),
+      now: () => new Date("2026-05-05T12:00:00Z").getTime(),
+    })
     const context = makeContext({
       messages: [
         { role: "user", content: "first" },

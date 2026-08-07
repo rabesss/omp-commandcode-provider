@@ -517,7 +517,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
               ? Math.trunc(options.streamIdleTimeoutMs)
               : DEFAULT_IDLE_TIMEOUT_MS
         const firstEventDeadline =
-          firstEventTimeoutMs === undefined ? undefined : Date.now() + firstEventTimeoutMs
+          firstEventTimeoutMs === undefined ? undefined : now() + firstEventTimeoutMs
         let receivedSemanticEvent = false
         let lastRawChunkAt: number | undefined
 
@@ -527,7 +527,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
               if (waitMs > 0) await delay(waitMs, controller.signal)
               return
             }
-            const remainingMs = (lastRawChunkAt ?? Date.now()) + idleTimeoutMs - Date.now()
+            const remainingMs = (lastRawChunkAt ?? now()) + idleTimeoutMs - now()
             if (remainingMs <= 0 || waitMs >= remainingMs) {
               throw streamIdleTimeoutError(idleTimeoutMs)
             }
@@ -556,7 +556,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             return
           }
 
-          const remainingMs = firstEventDeadline - Date.now()
+          const remainingMs = firstEventDeadline - now()
           if (remainingMs <= 0 || waitMs >= remainingMs) {
             throw firstStreamEventTimeoutError(firstEventTimeoutMs!)
           }
@@ -616,7 +616,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           }
 
           if (firstEventDeadline !== undefined && !receivedSemanticEvent) {
-            const remainingMs = firstEventDeadline - Date.now()
+            const remainingMs = firstEventDeadline - now()
             if (remainingMs <= 0) throw firstStreamEventTimeoutError(firstEventTimeoutMs!)
             attemptFirstEventTimeoutId = setTimeout(() => {
               attemptFirstEventTimedOut = true
@@ -641,7 +641,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           const armIdleTimeout = () => {
             clearIdleTimeout()
             if (!receivedSemanticEvent || idleTimeoutMs === undefined) return
-            const remainingMs = (lastRawChunkAt ?? Date.now()) + idleTimeoutMs - Date.now()
+            const remainingMs = (lastRawChunkAt ?? now()) + idleTimeoutMs - now()
             if (remainingMs <= 0) {
               attemptIdleTimedOut = true
               attemptController.abort()
@@ -788,7 +788,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
                     const parsed = parseStreamEventLine(buffer)
                     if (parsed !== undefined) {
                       receivedSemanticEvent = true
-                      lastRawChunkAt = Date.now()
+                      lastRawChunkAt = now()
                       clearFirstEventTimeout()
                       armIdleTimeout()
                     }
@@ -806,7 +806,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
                 if (controller.signal.aborted) throw abortError("Aborted")
 
                 if (receivedSemanticEvent) {
-                  lastRawChunkAt = Date.now()
+                  lastRawChunkAt = now()
                   armIdleTimeout()
                 }
 
@@ -819,7 +819,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
                   const parsed = parseStreamEventLine(line)
                   if (parsed !== undefined) {
                     receivedSemanticEvent = true
-                    lastRawChunkAt = Date.now()
+                    lastRawChunkAt = now()
                     clearFirstEventTimeout()
                     armIdleTimeout()
                   }
