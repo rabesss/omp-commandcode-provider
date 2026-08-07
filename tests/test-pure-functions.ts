@@ -156,6 +156,24 @@ describe("toJsonSchema()", () => {
     assert.deepEqual(toJsonSchema(callable), converted)
   })
 
+  it("retains conversion for mixed and uppercase legacy schema shapes", () => {
+    assert.deepEqual(
+      toJsonSchema({
+        type: "object",
+        properties: {
+          city: { kind: "string" },
+        },
+      }),
+      {
+        type: "object",
+        properties: { city: { type: "string" } },
+        required: ["city"],
+      },
+    )
+    assert.deepEqual(toJsonSchema({ type: "String" }), { type: "string" })
+  })
+
+
   it("converts scalar, enum, object, optional, array, and union schema shapes", () => {
     assert.deepEqual(toJsonSchema({ kind: "string" }), { type: "string" })
     assert.deepEqual(toJsonSchema({ kind: "Number" }), { type: "number" })

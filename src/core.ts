@@ -331,9 +331,10 @@ export function createStreamCommandCode(deps: CoreDependencies) {
 
         switch (event.type) {
           case "text-delta": {
-            endThinkingBlock()
             const delta = stringValue(event.text) ?? ""
-            if (delta) receivedProviderContent = true
+            if (!delta) break
+            endThinkingBlock()
+            receivedProviderContent = true
             if (!textBlock) {
               textBlock = { type: "text", text: "" }
               output.content.push(textBlock)
@@ -355,9 +356,10 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           }
 
           case "reasoning-delta": {
-            endTextBlock()
             const delta = stringValue(event.text) ?? ""
-            if (delta) receivedProviderContent = true
+            if (!delta) break
+            endTextBlock()
+            receivedProviderContent = true
             if (!thinkingBlock) {
               thinkingBlock = { type: "thinking", thinking: "" }
               output.content.push(thinkingBlock)
@@ -458,6 +460,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
       try {
         stream.push({ type: "start", partial: output })
 
+        const selectedReasoningEffort = reasoningEffort(model, options)
         let body: unknown = {
           config: {
             workingDir: basename(cwd()) || ".",
@@ -485,8 +488,8 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             ...(numberValue(options?.temperature) === undefined
               ? {}
               : { temperature: options?.temperature }),
-            ...(reasoningEffort(model, options)
-              ? { reasoning_effort: reasoningEffort(model, options) }
+            ...(selectedReasoningEffort
+              ? { reasoning_effort: selectedReasoningEffort }
               : {}),
             stream: true,
           },
@@ -702,18 +705,34 @@ export function createStreamCommandCode(deps: CoreDependencies) {
               continue retryLoop
             }
 
-            await raceAbort(
-              Promise.resolve(
-                options?.onResponse?.(
-                  {
-                    status: response.status,
-                    headers: headersToRecord(response.headers),
-                  },
-                  model,
+            try {
+              await raceAbort(
+                Promise.resolve(
+                  options?.onResponse?.(
+                    {
+                      status: response.status,
+                      headers: headersToRecord(response.headers),
+                    },
+                    model,
+                  ),
                 ),
-              ),
-              attemptController.signal,
-            )
+                attemptController.signal,
+              )
+            } catch (responseHookError: unknown) {
+              if (controller.signal.aborted) throw abortError("Aborted")
+              if (attemptFirstEventTimedOut) {
+                throw firstStreamEventTimeoutError(firstEventTimeoutMs!)
+              }
+              if (attemptIdleTimedOut) throw streamIdleTimeoutError(idleTimeoutMs!)
+              if (attemptTimedOut) {
+                if (attempt < maxRetries) {
+                  await waitBeforeRetry(0)
+                  continue retryLoop
+                }
+                throw timeoutError(timeoutMs)
+              }
+              throw responseHookError
+            }
 
             if (!response.ok) {
               const errBody = await raceAbort(
@@ -729,7 +748,14 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             }
 
             reader = response.body?.getReader()
-            if (!reader) throw new Error("No response body")
+            if (!reader) {
+              if (attempt < maxRetries) {
+                const waitMs = retryDelayMs(attempt, null, maxRetryDelayMs, now())
+                await waitBeforeRetry(waitMs)
+                continue retryLoop
+              }
+              throw new Error("No response body")
+            }
 
             const decoder = new TextDecoder()
             let buffer = ""
@@ -814,6 +840,10 @@ export function createStreamCommandCode(deps: CoreDependencies) {
                 output.stopReason = "stop"
                 output.errorMessage = undefined
                 finished = false
+                receivedSemanticEvent = false
+                lastRawChunkAt = undefined
+                attemptIdleTimedOut = false
+                clearIdleTimeout()
                 const waitMs = attemptTimedOut
                   ? 0
                   : retryDelayMs(attempt, null, maxRetryDelayMs, now())

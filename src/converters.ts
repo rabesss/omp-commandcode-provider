@@ -101,6 +101,33 @@ export function getEnvironmentInfo(): string {
   return `${process.platform}-${process.arch}, Node.js ${process.version}`
 }
 
+const LEGACY_SCHEMA_KINDS = new Set([
+  "string",
+  "String",
+  "number",
+  "Number",
+  "boolean",
+  "Boolean",
+  "object",
+  "Object",
+  "array",
+  "Array",
+  "union",
+  "Union",
+  "optional",
+  "Optional",
+])
+
+function containsLegacySchemaShape(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (Array.isArray(value)) return value.some((item) => containsLegacySchemaShape(item, seen))
+  if (!isRecord(value) || seen.has(value)) return false
+  seen.add(value)
+  if (LEGACY_SCHEMA_KINDS.has(stringValue(value.kind) ?? "")) return true
+  const type = stringValue(value.type)
+  if (type && /^[A-Z]/.test(type) && LEGACY_SCHEMA_KINDS.has(type)) return true
+  return Object.values(value).some((item) => containsLegacySchemaShape(item, seen))
+}
+
 export function toJsonSchema(schema: unknown): unknown {
   if ((typeof schema === "object" && schema !== null) || typeof schema === "function") {
     const toJsonSchemaMethod = (schema as { toJsonSchema?: unknown }).toJsonSchema
@@ -122,7 +149,8 @@ export function toJsonSchema(schema: unknown): unknown {
 
   // OMP 17 exposes standards-compliant JSON Schema. Forward it losslessly;
   // only the older `kind` shapes below need conversion.
-  if (!("kind" in schema)) {
+  const containsLegacyShape = containsLegacySchemaShape(schema)
+  if (!("kind" in schema) && !containsLegacyShape) {
     try {
       const cloned: unknown = JSON.parse(JSON.stringify(schema))
       return isRecord(cloned) ? cloned : {}
@@ -131,7 +159,7 @@ export function toJsonSchema(schema: unknown): unknown {
     }
   }
 
-  const kind = stringValue(schema.kind)
+  const kind = stringValue(schema.kind) ?? stringValue(schema.type)
   const enumValues = Array.isArray(schema.enum) ? schema.enum : undefined
   if (enumValues) {
     return { type: typeof enumValues[0], enum: enumValues }
