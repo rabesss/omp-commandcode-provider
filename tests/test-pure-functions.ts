@@ -143,6 +143,17 @@ describe("toJsonSchema()", () => {
     assert.deepEqual(toJsonSchema(schema), schema)
   })
 
+  it("does not mistake annotation and assertion payloads for legacy schema nodes", () => {
+    const schema = {
+      const: { kind: "string" },
+      default: { type: "String" },
+      examples: [{ kind: "object" }],
+      enum: [{ type: "Number" }],
+    }
+
+    assert.deepEqual(toJsonSchema(schema), schema)
+  })
+
   it("uses OMP callable schemas through toJsonSchema()", () => {
     const converted = {
       type: "object",
@@ -172,7 +183,6 @@ describe("toJsonSchema()", () => {
     )
     assert.deepEqual(toJsonSchema({ type: "String" }), { type: "string" })
   })
-
 
   it("converts scalar, enum, object, optional, array, and union schema shapes", () => {
     assert.deepEqual(toJsonSchema({ kind: "string" }), { type: "string" })

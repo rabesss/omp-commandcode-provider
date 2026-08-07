@@ -735,10 +735,27 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             }
 
             if (!response.ok) {
-              const errBody = await raceAbort(
-                response.text().catch(() => ""),
-                attemptController.signal,
-              )
+              let errBody: string
+              try {
+                errBody = await raceAbort(
+                  response.text().catch(() => ""),
+                  attemptController.signal,
+                )
+              } catch (errorBodyReadError: unknown) {
+                if (controller.signal.aborted) throw abortError("Aborted")
+                if (attemptFirstEventTimedOut) {
+                  throw firstStreamEventTimeoutError(firstEventTimeoutMs!)
+                }
+                if (attemptIdleTimedOut) throw streamIdleTimeoutError(idleTimeoutMs!)
+                if (attemptTimedOut) {
+                  if (attempt < maxRetries) {
+                    await waitBeforeRetry(0)
+                    continue retryLoop
+                  }
+                  throw timeoutError(timeoutMs)
+                }
+                throw errorBodyReadError
+              }
               throw new Error(
                 redactErrorMessage(
                   `Command Code API error ${response.status}: ${errBody.slice(0, 500)}`,

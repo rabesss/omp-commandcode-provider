@@ -125,7 +125,51 @@ function containsLegacySchemaShape(value: unknown, seen = new WeakSet<object>())
   if (LEGACY_SCHEMA_KINDS.has(stringValue(value.kind) ?? "")) return true
   const type = stringValue(value.type)
   if (type && /^[A-Z]/.test(type) && LEGACY_SCHEMA_KINDS.has(type)) return true
-  return Object.values(value).some((item) => containsLegacySchemaShape(item, seen))
+
+  // Recurse only through positions that contain schemas. Annotation/assertion
+  // payloads such as const, default, examples, and enum are arbitrary JSON and
+  // may legitimately contain fields named `kind` or `type`.
+  const schemaMaps = [
+    value.properties,
+    value.patternProperties,
+    value.dependentSchemas,
+    value.$defs,
+    value.definitions,
+  ]
+  for (const schemaMap of schemaMaps) {
+    if (
+      isRecord(schemaMap) &&
+      Object.values(schemaMap).some((item) => containsLegacySchemaShape(item, seen))
+    ) {
+      return true
+    }
+  }
+
+  const schemaArrays = [value.prefixItems, value.anyOf, value.oneOf, value.allOf, value.variants]
+  for (const schemaArray of schemaArrays) {
+    if (
+      Array.isArray(schemaArray) &&
+      schemaArray.some((item) => containsLegacySchemaShape(item, seen))
+    ) {
+      return true
+    }
+  }
+
+  const schemaValues = [
+    value.items,
+    value.additionalProperties,
+    value.unevaluatedProperties,
+    value.propertyNames,
+    value.contains,
+    value.not,
+    value.if,
+    value.then,
+    value.else,
+    value.wrapped,
+    value.inner,
+    value.element,
+  ]
+  return schemaValues.some((item) => containsLegacySchemaShape(item, seen))
 }
 
 export function toJsonSchema(schema: unknown): unknown {

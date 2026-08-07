@@ -209,6 +209,66 @@ describe("streamCommandCode Retry-After", () => {
 })
 
 describe("streamCommandCode timeout", () => {
+  it("retains attempt-timeout semantics while reading a non-OK response body", async () => {
+    const fetchImpl: typeof fetch = async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          setTimeout(() => {
+            controller.enqueue(new TextEncoder().encode("bad request"))
+            controller.close()
+          }, 100)
+        },
+      })
+      return new Response(body, { status: 400 })
+    }
+    const { streamCommandCode } = createTestDeps({ fetchImpl })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        timeoutMs: 25,
+        maxRetries: 0,
+      }),
+      2_000,
+    )
+
+    const last = events.at(-1)
+    if (last?.type !== "error") throw new Error("expected error")
+    assert.match(last.error.errorMessage ?? "", /timed out after 25ms/i)
+  })
+
+  it("retries an attempt timeout while reading a non-OK response body", async () => {
+    let calls = 0
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1
+      if (calls === 1) {
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            setTimeout(() => {
+              controller.enqueue(new TextEncoder().encode("slow error"))
+              controller.close()
+            }, 100)
+          },
+        })
+        return new Response(body, { status: 400 })
+      }
+      return new Response(`${JSON.stringify({ type: "finish", finishReason: "stop" })}\n`)
+    }
+    const { streamCommandCode } = createTestDeps({ fetchImpl })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        timeoutMs: 25,
+        maxRetries: 1,
+      }),
+      2_000,
+    )
+
+    assert.equal(calls, 2)
+    assert.equal(events.at(-1)?.type, "done")
+  })
+
   it("retries an attempt timeout raised while onResponse is pending", async () => {
     server.mockResponse({
       type: "success",
@@ -330,11 +390,12 @@ describe("streamCommandCode timeout", () => {
     server.mockResponse({
       type: "success",
       chunks: [
+        `${JSON.stringify({ type: "text-delta", text: "partial" })}\n`,
         ": ping one\n",
         ": ping two\n",
         `${JSON.stringify({ type: "finish", finishReason: "stop" })}\n`,
       ],
-      delays: [0, 15, 15],
+      delays: [0, 15, 15, 15],
     })
     const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
 
@@ -428,6 +489,30 @@ describe("streamCommandCode timeout", () => {
 })
 
 describe("streamCommandCode stream-level error retry", () => {
+  it("retries a truncated stream that ends before provider content", async () => {
+    server.mockResponseQueue([
+      {
+        type: "success",
+        chunks: [": connection established\n"],
+      },
+      {
+        type: "success",
+        events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+      },
+    ])
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        maxRetries: 1,
+      }),
+    )
+
+    assert.equal(server.requestCount(), 2)
+    assert.deepEqual(eventTypes(events), ["start", "done"])
+  })
+
   it("ignores empty deltas so a pre-content retry cannot orphan block events", async () => {
     server.mockResponseQueue([
       {
