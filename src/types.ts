@@ -55,6 +55,10 @@ export interface ModelLike {
   api: unknown
   provider: string
   maxTokens: number
+  thinking?: {
+    mode: "effort"
+    efforts: readonly string[]
+  }
   cost?: {
     input: number
     output: number
@@ -93,6 +97,12 @@ export interface StreamOptions {
   signal?: AbortSignal
   headers?: Record<string, string>
   maxTokens?: number
+  temperature?: number
+  reasoning?: string
+  disableReasoning?: boolean
+  sessionId?: string
+  streamFirstEventTimeoutMs?: number
+  streamIdleTimeoutMs?: number
   toolChoice?: unknown
   onPayload?: (payload: unknown, model: ModelLike) => unknown | Promise<unknown>
   onResponse?: (response: ProviderResponseInfo, model: ModelLike) => void | Promise<void>

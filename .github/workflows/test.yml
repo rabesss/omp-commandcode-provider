@@ -1,0 +1,40 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Assert dependency-free package
+        run: |
+          node -e 'const p=require("./package.json"); for (const key of ["dependencies","devDependencies","optionalDependencies","peerDependencies"]) if (p[key] && Object.keys(p[key]).length) throw new Error(`${key} must stay empty`)'
+      - name: Install pinned OMP test runtime
+        run: npm install --global @oh-my-pi/pi-coding-agent@17.2.10
+      - name: Run tests
+        run: npm test
+
+  model-drift:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Compare committed catalog to Command Code
+        run: npm run models:check

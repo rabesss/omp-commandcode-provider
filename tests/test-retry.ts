@@ -36,6 +36,33 @@ function eventTypes(events: readonly AssistantMessageEvent[]): string[] {
 }
 
 describe("streamCommandCode retry", () => {
+  it("retries a generic pre-response network failure", async () => {
+    let calls = 0
+    const fetchImpl: typeof fetch = async (input, init) => {
+      calls += 1
+      if (calls === 1) throw new TypeError("socket reset")
+      return fetch(input, init)
+    }
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+    })
+    const { streamCommandCode } = createTestDeps({
+      apiBase: server.baseUrl(),
+      fetchImpl,
+    })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        maxRetries: 1,
+      }),
+    )
+
+    assert.equal(calls, 2)
+    assert.equal(events.at(-1)?.type, "done")
+  })
+
   it("retries 429 and succeeds on the second attempt", async () => {
     server.mockResponseQueue([
       { type: "error", status: 429, body: "rate limited" },
@@ -158,6 +185,120 @@ describe("streamCommandCode Retry-After", () => {
 })
 
 describe("streamCommandCode timeout", () => {
+  it("enforces OMP's first-stream-event deadline across retries", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+      responseDelay: 100,
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        streamFirstEventTimeoutMs: 25,
+        maxRetries: 2,
+      }),
+      2_000,
+    )
+
+    assert.equal(server.requestCount(), 1)
+    const last = events.at(-1)
+    if (last?.type !== "error") throw new Error("expected error")
+    assert.match(last.error.errorMessage ?? "", /first stream event.*25ms/i)
+  })
+
+  it("does not count SSE comments as the first semantic stream event", async () => {
+    server.mockResponse({
+      type: "success",
+      chunks: [
+        ": connection established\n",
+        `${JSON.stringify({ type: "finish", finishReason: "stop" })}\n`,
+      ],
+      delays: [0, 50],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        streamFirstEventTimeoutMs: 25,
+      }),
+      2_000,
+    )
+
+    const last = events.at(-1)
+    if (last?.type !== "error") throw new Error("expected error")
+    assert.match(last.error.errorMessage ?? "", /first stream event/i)
+  })
+
+  it("disables first-event and idle watchdogs when OMP passes zero", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+      responseDelay: 40,
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        streamFirstEventTimeoutMs: 0,
+        streamIdleTimeoutMs: 0,
+      }),
+      2_000,
+    )
+
+    assert.equal(events.at(-1)?.type, "done")
+  })
+
+  it("enforces OMP's idle deadline after provider content without retrying", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "text-delta", text: "partial" })],
+      hangAfterLast: true,
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        streamIdleTimeoutMs: 25,
+        maxRetries: 2,
+      }),
+      2_000,
+    )
+
+    assert.equal(server.requestCount(), 1)
+    assert.deepEqual(eventTypes(events), ["start", "text_start", "text_delta", "error"])
+    const last = events.at(-1)
+    if (last?.type !== "error") throw new Error("expected error")
+    assert.match(last.error.errorMessage ?? "", /stream idle.*25ms/i)
+  })
+
+  it("resets the idle deadline on raw SSE comments and keepalives", async () => {
+    server.mockResponse({
+      type: "success",
+      chunks: [
+        ": ping one\n",
+        ": ping two\n",
+        `${JSON.stringify({ type: "finish", finishReason: "stop" })}\n`,
+      ],
+      delays: [0, 15, 15],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        streamIdleTimeoutMs: 25,
+      }),
+      2_000,
+    )
+
+    assert.equal(events.at(-1)?.type, "done")
+  })
+
   it("retries on per-attempt timeout before content and succeeds", async () => {
     server.mockResponseQueue([
       {
@@ -237,6 +378,88 @@ describe("streamCommandCode timeout", () => {
 })
 
 describe("streamCommandCode stream-level error retry", () => {
+  it("does not retry after a reasoning delta even before reasoning-end", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [
+        JSON.stringify({ type: "reasoning-delta", text: "partial thought" }),
+        JSON.stringify({
+          type: "error",
+          error: { message: "temporary", statusCode: 503, isRetryable: true },
+        }),
+      ],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        maxRetries: 2,
+      }),
+    )
+
+    assert.equal(server.requestCount(), 1)
+    assert.deepEqual(eventTypes(events), ["start", "thinking_start", "thinking_delta", "error"])
+  })
+
+  it("retries a nested retryable provider error before content", async () => {
+    server.mockResponseQueue([
+      {
+        type: "success",
+        events: [
+          JSON.stringify({
+            type: "error",
+            error: { message: "temporary", statusCode: 503, isRetryable: true },
+          }),
+        ],
+      },
+      {
+        type: "success",
+        events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+      },
+    ])
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        maxRetries: 1,
+        sessionId: "stable-session",
+      }),
+    )
+
+    assert.equal(server.requestCount(), 2)
+    assert.equal(server.lastRequestHeaders()["x-session-id"], "stable-session")
+    assert.equal(events.at(-1)?.type, "done")
+  })
+
+  it("does not let a post-event retry delay exceed the idle deadline", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [
+        JSON.stringify({
+          type: "error",
+          error: { message: "temporary", statusCode: 503, isRetryable: true },
+        }),
+      ],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), {
+        apiKey: TEST_API_KEY,
+        maxRetries: 1,
+        streamIdleTimeoutMs: 25,
+      }),
+    )
+
+    assert.equal(server.requestCount(), 1)
+    const last = events.at(-1)
+    if (last?.type !== "error") throw new Error("expected error")
+    assert.match(last.error.errorMessage ?? "", /stream idle/i)
+  })
+
+
   it("retries a provider error event before visible content", async () => {
     server.mockResponseQueue([
       {

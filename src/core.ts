@@ -32,6 +32,7 @@ import type {
   StreamOptions,
   TerminalReason,
   TextContent,
+  ThinkingContent,
   ToolCallContent,
   Usage,
 } from "./types.ts"
@@ -41,22 +42,46 @@ export * from "./model-capabilities.ts"
 export * from "./types.ts"
 
 export const DEFAULT_API_BASE = "https://api.commandcode.ai"
-export const COMMAND_CODE_CLI_VERSION = "0.40.8"
+export const COMMAND_CODE_CLI_VERSION = "1.14.1"
 const COMMAND_CODE_MAX_OUTPUT_TOKENS = 200_000
 const DEFAULT_MAX_RETRIES = 0
 const DEFAULT_MAX_RETRY_DELAY_MS = 60_000
+const DEFAULT_FIRST_EVENT_TIMEOUT_MS = 100_000
+const DEFAULT_IDLE_TIMEOUT_MS = 120_000
 const BASE_RETRY_DELAY_MS = 500
 
 function isRetryableStatus(status: number): boolean {
   return status === 429 || (status >= 500 && status < 600)
 }
 
-function parseRetryAfterSeconds(value: string | null): number | undefined {
+class CommandCodeStreamError extends Error {
+  readonly statusCode?: number
+  readonly isRetryable?: boolean
+
+  constructor(
+    message: string,
+    statusCode?: number,
+    isRetryable?: boolean,
+  ) {
+    super(message)
+    this.name = "CommandCodeStreamError"
+    this.statusCode = statusCode
+    this.isRetryable = isRetryable
+  }
+}
+
+function redactErrorMessage(message: string, apiKey: string): string {
+  let redacted = message
+  if (apiKey) redacted = redacted.split(apiKey).join("[REDACTED]")
+  return redacted.replace(/Bearer\s+[^\s"']+/gi, "Bearer [REDACTED]")
+}
+
+function parseRetryAfterSeconds(value: string | null, nowMs = Date.now()): number | undefined {
   if (!value) return undefined
   const seconds = Number(value)
   if (Number.isFinite(seconds) && seconds >= 0) return seconds
   const date = Date.parse(value)
-  if (!Number.isNaN(date)) return Math.max(0, (date - Date.now()) / 1000)
+  if (!Number.isNaN(date)) return Math.max(0, (date - nowMs) / 1000)
   return undefined
 }
 
@@ -70,8 +95,9 @@ function retryDelayMs(
   attempt: number,
   retryAfterHeader: string | null,
   maxDelayMs: number,
+  nowMs = Date.now(),
 ): number {
-  const retryAfterSeconds = parseRetryAfterSeconds(retryAfterHeader)
+  const retryAfterSeconds = parseRetryAfterSeconds(retryAfterHeader, nowMs)
   if (retryAfterSeconds !== undefined) {
     const retryAfterMs = retryAfterSeconds * 1000
     if (retryAfterMs > maxDelayMs) return -1
@@ -123,6 +149,14 @@ function timeoutError(timeoutMs: number | undefined): Error {
   )
 }
 
+function firstStreamEventTimeoutError(timeoutMs: number): Error {
+  return new Error(`Command Code first stream event timed out after ${timeoutMs}ms`)
+}
+
+function streamIdleTimeoutError(timeoutMs: number): Error {
+  return new Error(`Command Code stream idle timed out after ${timeoutMs}ms`)
+}
+
 function successStopReason(reason: TerminalReason): StopReason {
   if (reason === "length" || reason === "toolUse") return reason
   return "stop"
@@ -134,6 +168,17 @@ function generateMaxTokens(model: ModelLike, options?: StreamOptions): number {
 
 function systemPromptText(prompt: ContextLike["systemPrompt"]): string {
   return typeof prompt === "string" ? prompt : (prompt?.join("\n\n") ?? "")
+}
+
+function reasoningEffort(model: ModelLike, options?: StreamOptions): string | undefined {
+  const efforts = model.thinking?.efforts ?? []
+  const commandCodeEfforts = efforts.filter((effort) => effort !== "minimal")
+  if (commandCodeEfforts.length === 0) return undefined
+  if (options?.disableReasoning) return commandCodeEfforts[0]
+  if (options?.reasoning === "minimal" && commandCodeEfforts.includes("low")) return "low"
+  return options?.reasoning && commandCodeEfforts.includes(options.reasoning)
+    ? options.reasoning
+    : undefined
 }
 
 export function createStreamCommandCode(deps: CoreDependencies) {
@@ -186,7 +231,12 @@ export function createStreamCommandCode(deps: CoreDependencies) {
     const stream = deps.createStream()
 
     async function run() {
-      const literalApiKeyRefs = new Set(["COMMANDCODE_API_KEY", "$COMMANDCODE_API_KEY"])
+      const literalApiKeyRefs = new Set([
+        "COMMAND_CODE_API_KEY",
+        "$COMMAND_CODE_API_KEY",
+        "COMMANDCODE_API_KEY",
+        "$COMMANDCODE_API_KEY",
+      ])
       const hostApiKey =
         options?.apiKey && !literalApiKeyRefs.has(options.apiKey) ? options.apiKey : undefined
       const apiKey =
@@ -207,7 +257,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           usage: defaultUsage(),
           stopReason: "error",
           errorMessage:
-            "No Command Code API key. Run /login and select Command Code, set COMMANDCODE_API_KEY in ~/.omp/agent/.env, or configure ~/.commandcode/auth.json.",
+            "No Command Code API key. Run /login and select Command Code, set COMMAND_CODE_API_KEY (or legacy COMMANDCODE_API_KEY) in ~/.omp/agent/.env, or configure ~/.commandcode/auth.json.",
           timestamp: now(),
         }
         stream.push({ type: "error", reason: "error", error: msg })
@@ -230,8 +280,10 @@ export function createStreamCommandCode(deps: CoreDependencies) {
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
       let textBlock: TextContent | undefined
       let currentTextIdx = -1
-      let thinkingBlock: string[] = []
+      let thinkingBlock: ThinkingContent | undefined
+      let currentThinkingIdx = -1
       let finished = false
+      let receivedProviderContent = false
 
       const abortUpstream = () => {
         if (!controller.signal.aborted) controller.abort()
@@ -262,29 +314,16 @@ export function createStreamCommandCode(deps: CoreDependencies) {
         currentTextIdx = -1
       }
 
-      const flushThinkingBlock = () => {
-        if (thinkingBlock.length === 0) return
-        const thinkingText = thinkingBlock.join("")
-        thinkingBlock = []
-        output.content.push({ type: "thinking", thinking: thinkingText })
-        const idx = output.content.length - 1
-        stream.push({
-          type: "thinking_start",
-          contentIndex: idx,
-          partial: output,
-        })
-        stream.push({
-          type: "thinking_delta",
-          contentIndex: idx,
-          delta: thinkingText,
-          partial: output,
-        })
+      const endThinkingBlock = () => {
+        if (!thinkingBlock) return
         stream.push({
           type: "thinking_end",
-          contentIndex: idx,
-          content: thinkingText,
+          contentIndex: currentThinkingIdx,
+          content: thinkingBlock.thinking,
           partial: output,
         })
+        thinkingBlock = undefined
+        currentThinkingIdx = -1
       }
 
       const handleEvent = (event: unknown) => {
@@ -292,6 +331,9 @@ export function createStreamCommandCode(deps: CoreDependencies) {
 
         switch (event.type) {
           case "text-delta": {
+            endThinkingBlock()
+            const delta = stringValue(event.text) ?? ""
+            if (delta) receivedProviderContent = true
             if (!textBlock) {
               textBlock = { type: "text", text: "" }
               output.content.push(textBlock)
@@ -302,7 +344,6 @@ export function createStreamCommandCode(deps: CoreDependencies) {
                 partial: output,
               })
             }
-            const delta = stringValue(event.text) ?? ""
             textBlock.text += delta
             stream.push({
               type: "text_delta",
@@ -314,17 +355,38 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           }
 
           case "reasoning-delta": {
-            thinkingBlock.push(stringValue(event.text) ?? "")
+            endTextBlock()
+            const delta = stringValue(event.text) ?? ""
+            if (delta) receivedProviderContent = true
+            if (!thinkingBlock) {
+              thinkingBlock = { type: "thinking", thinking: "" }
+              output.content.push(thinkingBlock)
+              currentThinkingIdx = output.content.length - 1
+              stream.push({
+                type: "thinking_start",
+                contentIndex: currentThinkingIdx,
+                partial: output,
+              })
+            }
+            thinkingBlock.thinking += delta
+            stream.push({
+              type: "thinking_delta",
+              contentIndex: currentThinkingIdx,
+              delta,
+              partial: output,
+            })
             break
           }
 
           case "reasoning-end": {
-            flushThinkingBlock()
+            endThinkingBlock()
             break
           }
 
           case "tool-call": {
             endTextBlock()
+            endThinkingBlock()
+            receivedProviderContent = true
             const toolCall: ToolCallContent = {
               type: "toolCall",
               id: stringValue(event.toolCallId) ?? "",
@@ -367,13 +429,28 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             break
           }
 
+          case "abort": {
+            output.stopReason = "stop"
+            finished = true
+            break
+          }
+
           case "error": {
             const errorRecord = isRecord(event.error) ? event.error : undefined
-            const message =
+            const rawMessage =
               stringValue(errorRecord?.message) ?? stringValue(event.error) ?? "Stream error"
+            const statusCode = numberValue(errorRecord?.statusCode)
+            const isRetryable =
+              typeof errorRecord?.isRetryable === "boolean"
+                ? errorRecord.isRetryable
+                : undefined
+            const message = redactErrorMessage(
+              statusCode === undefined ? rawMessage : `${statusCode}: ${rawMessage}`,
+              apiKey,
+            )
             output.stopReason = "error"
             output.errorMessage = message
-            throw new Error(message)
+            throw new CommandCodeStreamError(message, statusCode, isRetryable)
           }
         }
       }
@@ -405,6 +482,12 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             tools: options?.toolChoice === "none" ? [] : toolsToJson(context.tools),
             system: systemPromptText(context.systemPrompt),
             max_tokens: generateMaxTokens(model, options),
+            ...(numberValue(options?.temperature) === undefined
+              ? {}
+              : { temperature: options?.temperature }),
+            ...(reasoningEffort(model, options)
+              ? { reasoning_effort: reasoningEffort(model, options) }
+              : {}),
             stream: true,
           },
         }
@@ -418,6 +501,81 @@ export function createStreamCommandCode(deps: CoreDependencies) {
         const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES
         const maxRetryDelayMs = effectiveMaxRetryDelayMs(options?.maxRetryDelayMs)
         const timeoutMs = options?.timeoutMs
+        const firstEventTimeoutMs =
+          options?.streamFirstEventTimeoutMs === 0
+            ? undefined
+            : options?.streamFirstEventTimeoutMs && options.streamFirstEventTimeoutMs > 0
+              ? Math.trunc(options.streamFirstEventTimeoutMs)
+              : DEFAULT_FIRST_EVENT_TIMEOUT_MS
+        const idleTimeoutMs =
+          options?.streamIdleTimeoutMs === 0
+            ? undefined
+            : options?.streamIdleTimeoutMs && options.streamIdleTimeoutMs > 0
+              ? Math.trunc(options.streamIdleTimeoutMs)
+              : DEFAULT_IDLE_TIMEOUT_MS
+        const firstEventDeadline =
+          firstEventTimeoutMs === undefined ? undefined : Date.now() + firstEventTimeoutMs
+        let receivedSemanticEvent = false
+        let lastRawChunkAt: number | undefined
+
+        const waitBeforeRetry = async (waitMs: number) => {
+          if (receivedSemanticEvent) {
+            if (idleTimeoutMs === undefined) {
+              if (waitMs > 0) await delay(waitMs, controller.signal)
+              return
+            }
+            const remainingMs = (lastRawChunkAt ?? Date.now()) + idleTimeoutMs - Date.now()
+            if (remainingMs <= 0 || waitMs >= remainingMs) {
+              throw streamIdleTimeoutError(idleTimeoutMs)
+            }
+            if (waitMs <= 0) return
+            await new Promise<void>((resolve, reject) => {
+              const timer = setTimeout(
+                () => reject(streamIdleTimeoutError(idleTimeoutMs)),
+                remainingMs,
+              )
+              delay(waitMs, controller.signal).then(
+                () => {
+                  clearTimeout(timer)
+                  resolve()
+                },
+                (error: unknown) => {
+                  clearTimeout(timer)
+                  reject(error)
+                },
+              )
+            })
+            return
+          }
+
+          if (firstEventDeadline === undefined) {
+            if (waitMs > 0) await delay(waitMs, controller.signal)
+            return
+          }
+
+          const remainingMs = firstEventDeadline - Date.now()
+          if (remainingMs <= 0 || waitMs >= remainingMs) {
+            throw firstStreamEventTimeoutError(firstEventTimeoutMs!)
+          }
+          if (waitMs <= 0) return
+
+          await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(
+              () => reject(firstStreamEventTimeoutError(firstEventTimeoutMs!)),
+              remainingMs,
+            )
+            delay(waitMs, controller.signal).then(
+              () => {
+                clearTimeout(timer)
+                resolve()
+              },
+              (error: unknown) => {
+                clearTimeout(timer)
+                reject(error)
+              },
+            )
+          })
+        }
         const requestHeaders = {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
@@ -426,7 +584,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           "x-project-slug": "pi-cc",
           "x-taste-learning": "false",
           "x-co-flag": "false",
-          "x-session-id": uuid(),
+          "x-session-id": options?.sessionId || uuid(),
           ...options?.headers,
         }
         const bodyStr = JSON.stringify(body)
@@ -435,6 +593,10 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           const attemptController = new AbortController()
           let attemptTimedOut = false
           let attemptTimeoutId: ReturnType<typeof setTimeout> | undefined
+          let attemptFirstEventTimedOut = false
+          let attemptFirstEventTimeoutId: ReturnType<typeof setTimeout> | undefined
+          let attemptIdleTimedOut = false
+          let attemptIdleTimeoutId: ReturnType<typeof setTimeout> | undefined
 
           const clearAttemptTimeout = () => {
             if (attemptTimeoutId !== undefined) {
@@ -450,8 +612,47 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             }, timeoutMs)
           }
 
+          if (firstEventDeadline !== undefined && !receivedSemanticEvent) {
+            const remainingMs = firstEventDeadline - Date.now()
+            if (remainingMs <= 0) throw firstStreamEventTimeoutError(firstEventTimeoutMs!)
+            attemptFirstEventTimeoutId = setTimeout(() => {
+              attemptFirstEventTimedOut = true
+              attemptController.abort()
+            }, remainingMs)
+          }
+
+          const clearFirstEventTimeout = () => {
+            if (attemptFirstEventTimeoutId !== undefined) {
+              clearTimeout(attemptFirstEventTimeoutId)
+              attemptFirstEventTimeoutId = undefined
+            }
+          }
+
+          const clearIdleTimeout = () => {
+            if (attemptIdleTimeoutId !== undefined) {
+              clearTimeout(attemptIdleTimeoutId)
+              attemptIdleTimeoutId = undefined
+            }
+          }
+
+          const armIdleTimeout = () => {
+            clearIdleTimeout()
+            if (!receivedSemanticEvent || idleTimeoutMs === undefined) return
+            const remainingMs = (lastRawChunkAt ?? Date.now()) + idleTimeoutMs - Date.now()
+            if (remainingMs <= 0) {
+              attemptIdleTimedOut = true
+              attemptController.abort()
+              return
+            }
+            attemptIdleTimeoutId = setTimeout(() => {
+              attemptIdleTimedOut = true
+              attemptController.abort()
+            }, remainingMs)
+          }
+
           const onOuterAbort = () => attemptController.abort()
           controller.signal.addEventListener("abort", onOuterAbort, { once: true })
+          armIdleTimeout()
 
           try {
             let response: Response
@@ -464,9 +665,20 @@ export function createStreamCommandCode(deps: CoreDependencies) {
               })
             } catch (fetchError: unknown) {
               if (controller.signal.aborted) throw abortError("Aborted")
+              if (attemptFirstEventTimedOut) {
+                throw firstStreamEventTimeoutError(firstEventTimeoutMs!)
+              }
+              if (attemptIdleTimedOut) {
+                throw streamIdleTimeoutError(idleTimeoutMs!)
+              }
               if (attemptTimedOut) {
                 if (attempt < maxRetries) continue retryLoop
                 throw timeoutError(timeoutMs)
+              }
+              if (attempt < maxRetries) {
+                const waitMs = retryDelayMs(attempt, null, maxRetryDelayMs, now())
+                await waitBeforeRetry(waitMs)
+                continue retryLoop
               }
               throw fetchError
             }
@@ -476,15 +688,17 @@ export function createStreamCommandCode(deps: CoreDependencies) {
                 attempt,
                 response.headers.get("retry-after"),
                 maxRetryDelayMs,
+                now(),
               )
               if (waitMs < 0) {
-                const requestedSeconds = parseRetryAfterSeconds(response.headers.get("retry-after")) ?? 0
+                const requestedSeconds =
+                  parseRetryAfterSeconds(response.headers.get("retry-after"), now()) ?? 0
                 const capLabel =
                   maxRetryDelayMs === Number.POSITIVE_INFINITY ? "disabled" : `${maxRetryDelayMs}ms`
                 throw new Error(`Retry-After delay ${requestedSeconds}s exceeds max ${capLabel}`)
               }
               await response.text().catch(() => "")
-              if (waitMs > 0) await delay(waitMs, controller.signal)
+              await waitBeforeRetry(waitMs)
               continue retryLoop
             }
 
@@ -498,15 +712,20 @@ export function createStreamCommandCode(deps: CoreDependencies) {
                   model,
                 ),
               ),
-              controller.signal,
+              attemptController.signal,
             )
 
             if (!response.ok) {
               const errBody = await raceAbort(
                 response.text().catch(() => ""),
-                controller.signal,
+                attemptController.signal,
               )
-              throw new Error(`Command Code API error ${response.status}: ${errBody.slice(0, 500)}`)
+              throw new Error(
+                redactErrorMessage(
+                  `Command Code API error ${response.status}: ${errBody.slice(0, 500)}`,
+                  apiKey,
+                ),
+              )
             }
 
             reader = response.body?.getReader()
@@ -518,12 +737,35 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             try {
               readLoop: for (;;) {
                 if (controller.signal.aborted) throw abortError("Aborted")
-                const { done, value } = await raceAbort(reader.read(), attemptController.signal)
+                const readResult = await raceAbort(reader.read(), attemptController.signal)
+                attemptIdleTimedOut = false
+                const { done, value } = readResult
                 if (done) {
-                  if (buffer.trim()) handleEvent(parseStreamEventLine(buffer))
+                  if (buffer.trim()) {
+                    const parsed = parseStreamEventLine(buffer)
+                    if (parsed !== undefined) {
+                      receivedSemanticEvent = true
+                      lastRawChunkAt = Date.now()
+                      clearFirstEventTimeout()
+                      armIdleTimeout()
+                    }
+                    handleEvent(parsed)
+                  }
+                  if (!finished) {
+                    throw new CommandCodeStreamError(
+                      "Stream ended unexpectedly before completion (no finish or abort event) — response was truncated",
+                      502,
+                      true,
+                    )
+                  }
                   break
                 }
                 if (controller.signal.aborted) throw abortError("Aborted")
+
+                if (receivedSemanticEvent) {
+                  lastRawChunkAt = Date.now()
+                  armIdleTimeout()
+                }
 
                 buffer += decoder.decode(value, { stream: true })
                 const lines = buffer.split("\n")
@@ -531,7 +773,14 @@ export function createStreamCommandCode(deps: CoreDependencies) {
 
                 for (const line of lines) {
                   if (controller.signal.aborted) throw abortError("Aborted")
-                  handleEvent(parseStreamEventLine(line))
+                  const parsed = parseStreamEventLine(line)
+                  if (parsed !== undefined) {
+                    receivedSemanticEvent = true
+                    lastRawChunkAt = Date.now()
+                    clearFirstEventTimeout()
+                    armIdleTimeout()
+                  }
+                  handleEvent(parsed)
                   if (finished) break readLoop
                 }
               }
@@ -545,25 +794,38 @@ export function createStreamCommandCode(deps: CoreDependencies) {
               reader = undefined
 
               if (controller.signal.aborted) throw streamError
-              const canRetry = output.content.length === 0 && attempt < maxRetries
+              if (attemptFirstEventTimedOut) {
+                throw firstStreamEventTimeoutError(firstEventTimeoutMs!)
+              }
+              const effectiveStreamError = attemptIdleTimedOut
+                ? streamIdleTimeoutError(idleTimeoutMs!)
+                : streamError
+              const retryableStreamError =
+                !(effectiveStreamError instanceof CommandCodeStreamError) ||
+                effectiveStreamError.isRetryable !== false
+              const canRetry =
+                !receivedProviderContent && retryableStreamError && attempt < maxRetries
               if (canRetry) {
                 output.content.length = 0
                 textBlock = undefined
                 currentTextIdx = -1
-                thinkingBlock = []
+                thinkingBlock = undefined
+                currentThinkingIdx = -1
                 output.stopReason = "stop"
                 output.errorMessage = undefined
                 finished = false
-                const waitMs = attemptTimedOut ? 0 : retryDelayMs(attempt, null, maxRetryDelayMs)
-                if (waitMs > 0) await delay(waitMs, controller.signal)
+                const waitMs = attemptTimedOut
+                  ? 0
+                  : retryDelayMs(attempt, null, maxRetryDelayMs, now())
+                await waitBeforeRetry(waitMs)
                 continue retryLoop
               }
               if (attemptTimedOut) throw timeoutError(timeoutMs)
-              throw streamError
+              throw effectiveStreamError
             }
 
             endTextBlock()
-            flushThinkingBlock()
+            endThinkingBlock()
 
             stream.push({
               type: "done",
@@ -575,6 +837,8 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           } finally {
             controller.signal.removeEventListener("abort", onOuterAbort)
             clearAttemptTimeout()
+            clearFirstEventTimeout()
+            clearIdleTimeout()
           }
         }
       } catch (error: unknown) {
@@ -584,7 +848,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           reason === "aborted"
             ? "Request aborted"
             : error instanceof Error
-              ? error.message
+              ? redactErrorMessage(error.message, apiKey)
               : String(error)
         stream.push({ type: "error", reason, error: output })
         stream.end()

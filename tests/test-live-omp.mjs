@@ -25,6 +25,7 @@ function findOmpBinary() {
 
 const omp = findOmpBinary()
 if (!omp) throw new Error("OMP_BIN is unset and omp was not found on PATH")
+const liveModel = process.env.COMMAND_CODE_LIVE_MODEL ?? "poolside/laguna-s-2.1-free"
 
 const result = spawnSync(
   omp,
@@ -37,7 +38,7 @@ const result = spawnSync(
     "minimal",
     "-p",
     "--model",
-    "commandcode/deepseek/deepseek-v4-flash",
+    `commandcode/${liveModel}`,
     "Reply with exactly: commandcode-live-ok",
   ],
   { cwd: projectDir, encoding: "utf8", timeout: 120_000 },

@@ -26,7 +26,10 @@ function waitForClose(server: {
 
 describe("startAuthServer()", () => {
   it("starts on a loopback port and accepts the required callback fields", async () => {
-    const { server, port, waitForCallback } = await startAuthServer({ startPort: 0 })
+    const { server, port, waitForCallback } = await startAuthServer({
+      startPort: 0,
+      expectedState: "test-state-token",
+    })
 
     const callbackData: AuthCallback = {
       apiKey: "user_testKey123",
@@ -52,7 +55,10 @@ describe("startAuthServer()", () => {
   })
 
   it("rejects when the callback indicates access_denied", async () => {
-    const { server, port, waitForCallback } = await startAuthServer({ startPort: 0 })
+    const { server, port, waitForCallback } = await startAuthServer({
+      startPort: 0,
+      expectedState: "denied-state",
+    })
 
     // Attach rejection handler before posting to avoid unhandled rejection
     const errorPromise: Promise<string> = waitForCallback.then(
@@ -65,7 +71,11 @@ describe("startAuthServer()", () => {
     const response = await fetch(`http://127.0.0.1:${port}/callback`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
-      body: JSON.stringify({ error: "access_denied", error_description: "User cancelled" }),
+      body: JSON.stringify({
+        error: "access_denied",
+        error_description: "User cancelled",
+        state: "denied-state",
+      }),
     })
 
     assert.equal(response.status, 200)
@@ -77,7 +87,7 @@ describe("startAuthServer()", () => {
   })
 
   it("returns 400 for missing required fields", async () => {
-    const { server, port } = await startAuthServer({ startPort: 0 })
+    const { server, port } = await startAuthServer({ startPort: 0, expectedState: "state" })
 
     const response = await fetch(`http://127.0.0.1:${port}/callback`, {
       method: "POST",
@@ -92,7 +102,7 @@ describe("startAuthServer()", () => {
   })
 
   it("does not grant callback CORS to unapproved origins", async () => {
-    const { server, port } = await startAuthServer({ startPort: 0 })
+    const { server, port } = await startAuthServer({ startPort: 0, expectedState: "state" })
 
     const response = await fetch(`http://127.0.0.1:${port}/callback`, {
       method: "OPTIONS",
@@ -107,7 +117,7 @@ describe("startAuthServer()", () => {
   })
 
   it("handles CORS and private-network preflight OPTIONS request", async () => {
-    const { server, port } = await startAuthServer({ startPort: 0 })
+    const { server, port } = await startAuthServer({ startPort: 0, expectedState: "state" })
 
     const response = await fetch(`http://127.0.0.1:${port}/callback`, {
       method: "OPTIONS",
@@ -131,7 +141,7 @@ describe("startAuthServer()", () => {
   })
 
   it("returns 404 for non-callback paths", async () => {
-    const { server, port } = await startAuthServer({ startPort: 0 })
+    const { server, port } = await startAuthServer({ startPort: 0, expectedState: "state" })
 
     const response = await fetch(`http://127.0.0.1:${port}/other`, {
       method: "POST",
@@ -146,7 +156,7 @@ describe("startAuthServer()", () => {
   })
 
   it("returns 405 for GET on /callback", async () => {
-    const { server, port } = await startAuthServer({ startPort: 0 })
+    const { server, port } = await startAuthServer({ startPort: 0, expectedState: "state" })
 
     const response = await fetch(`http://127.0.0.1:${port}/callback`, {
       method: "GET",
@@ -237,9 +247,7 @@ describe("login()", () => {
     assert.equal(response.status, 200)
 
     const result = await loginPromise
-    assert.equal(result.access, "user_browserApiKey")
-    assert.equal(result.refresh, "user_browserApiKey")
-    assert.ok(result.expires > Date.now(), "expiry should be far in the future")
+    assert.equal(result, "user_browserApiKey")
   })
 
   it("prompts for a manual API key if browser transfer times out", async () => {
@@ -262,16 +270,14 @@ describe("login()", () => {
 
       assert.match(authUrl, /^https:\/\/commandcode\.ai\/studio\/auth\/cli\?/)
       assert.match(promptMessage, /Paste your Command Code API key/)
-      assert.equal(result.access, "user_manualApiKey")
-      assert.equal(result.refresh, "user_manualApiKey")
-      assert.ok(result.expires > Date.now(), "expiry should be far in the future")
+      assert.equal(result, "user_manualApiKey")
     } finally {
       if (originalTimeout === undefined) delete process.env.COMMANDCODE_AUTH_TIMEOUT_MS
       else process.env.COMMANDCODE_AUTH_TIMEOUT_MS = originalTimeout
     }
   })
 
-  it("rejects on state token mismatch", async () => {
+  it("rejects a wrong state before success and remains available for the valid callback", async () => {
     let authUrl = ""
     const callbacks = {
       onAuth(params: { url: string }) {
@@ -282,12 +288,7 @@ describe("login()", () => {
       },
     }
 
-    const loginPromise: Promise<string> = login(callbacks).then(
-      () => {
-        throw new Error("Expected login to reject")
-      },
-      (e: Error) => e.message,
-    )
+    const loginPromise = login(callbacks)
 
     // Wait for onAuth to be called asynchronously
     while (!authUrl) await new Promise((resolve) => setTimeout(resolve, 10))
@@ -296,7 +297,7 @@ describe("login()", () => {
     const port = parseInt(new URL(url.searchParams.get("callback") ?? "").port)
 
     // Post back with a wrong state token
-    await fetch(`http://127.0.0.1:${port}/callback`, {
+    const wrongResponse = await fetch(`http://127.0.0.1:${port}/callback`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
       body: JSON.stringify({
@@ -305,7 +306,16 @@ describe("login()", () => {
       }),
     })
 
-    const errorMsg = await loginPromise
-    assert.match(errorMsg, /State token mismatch/)
+    assert.equal(wrongResponse.status, 403)
+
+    const state = url.searchParams.get("state") ?? ""
+    const validResponse = await fetch(`http://127.0.0.1:${port}/callback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
+      body: JSON.stringify({ apiKey: "user_goodState", state }),
+    })
+
+    assert.equal(validResponse.status, 200)
+    assert.equal(await loginPromise, "user_goodState")
   })
 })

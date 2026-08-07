@@ -58,6 +58,7 @@ export function getApiKey(
   } = {},
 ): string | undefined {
   const env = options.env ?? process.env
+  if (env.COMMAND_CODE_API_KEY) return env.COMMAND_CODE_API_KEY
   if (env.COMMANDCODE_API_KEY) return env.COMMANDCODE_API_KEY
 
   const home = options.homeDir?.() ?? homedir()
@@ -101,9 +102,36 @@ export function getEnvironmentInfo(): string {
 }
 
 export function toJsonSchema(schema: unknown): unknown {
+  if ((typeof schema === "object" && schema !== null) || typeof schema === "function") {
+    const toJsonSchemaMethod = (schema as { toJsonSchema?: unknown }).toJsonSchema
+    if (typeof toJsonSchemaMethod === "function") {
+      try {
+        return toJsonSchema(
+          toJsonSchemaMethod.call(schema, {
+            target: "draft-2020-12",
+            fallback: (context: { base?: unknown }) => context.base ?? {},
+          }),
+        )
+      } catch {
+        return {}
+      }
+    }
+  }
+
   if (!isRecord(schema)) return {}
 
-  const kind = stringValue(schema.kind) ?? stringValue(schema.type)
+  // OMP 17 exposes standards-compliant JSON Schema. Forward it losslessly;
+  // only the older `kind` shapes below need conversion.
+  if (!("kind" in schema)) {
+    try {
+      const cloned: unknown = JSON.parse(JSON.stringify(schema))
+      return isRecord(cloned) ? cloned : {}
+    } catch {
+      return {}
+    }
+  }
+
+  const kind = stringValue(schema.kind)
   const enumValues = Array.isArray(schema.enum) ? schema.enum : undefined
   if (enumValues) {
     return { type: typeof enumValues[0], enum: enumValues }
@@ -260,19 +288,24 @@ export function messagesToCC(
   return out
 }
 
-function imagePartToCC(part: Record<string, unknown>): { type: "image"; image: string } | undefined {
+function imagePartToCC(
+  part: Record<string, unknown>,
+): { type: "image"; image: string; mimeType: string } | undefined {
   const data = stringValue(part.data)
   if (!data) return undefined
 
-  const mimeType = stringValue(part.mimeType) ?? DEFAULT_IMAGE_MIME_TYPE
+  const dataUrlMimeType = /^data:([^;,]+)/.exec(data)?.[1]
+  const mimeType = stringValue(part.mimeType) ?? dataUrlMimeType ?? DEFAULT_IMAGE_MIME_TYPE
   const image = data.startsWith("data:") ? data : `data:${mimeType};base64,${data}`
-  return { type: "image", image }
+  return { type: "image", image, mimeType }
 }
 
 function userContentToCC(content: unknown, supportsVision: boolean): unknown {
   if (typeof content === "string") return content
 
-  type CCUserPart = { type: "text"; text: string } | { type: "image"; image: string }
+  type CCUserPart =
+    | { type: "text"; text: string }
+    | { type: "image"; image: string; mimeType: string }
   const parts: CCUserPart[] = []
   let omittedImages = false
   let malformedImages = false

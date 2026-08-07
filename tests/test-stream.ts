@@ -85,6 +85,31 @@ describe("streamCommandCode — auth", () => {
 
     assert.equal(server.lastRequestHeaders().authorization, "Bearer env-key")
   })
+
+  it("ignores canonical and legacy literal placeholders and uses the saved key source", async () => {
+    for (const placeholder of [
+      "COMMAND_CODE_API_KEY",
+      "$COMMAND_CODE_API_KEY",
+      "COMMANDCODE_API_KEY",
+      "$COMMANDCODE_API_KEY",
+    ]) {
+      server.reset()
+      server.mockResponse({
+        type: "success",
+        events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+      })
+      const { streamCommandCode } = createTestDeps({
+        apiBase: server.baseUrl(),
+        env: { COMMAND_CODE_API_KEY: "saved-key" },
+      })
+
+      await collectEvents(
+        streamCommandCode(makeModel(), makeContext(), { apiKey: placeholder }),
+      )
+
+      assert.equal(server.lastRequestHeaders().authorization, "Bearer saved-key")
+    }
+  })
 })
 
 describe("streamCommandCode — successful streams", () => {
@@ -200,6 +225,37 @@ describe("streamCommandCode — successful streams", () => {
     assert.equal(toolCall?.type === "toolCall" ? toolCall.name : "", "read_file")
   })
 
+  it("streams reasoning deltas immediately instead of buffering until reasoning-end", async () => {
+    server.mockResponse({
+      type: "success",
+      chunks: [
+        `${JSON.stringify({ type: "reasoning-delta", text: "first" })}\n`,
+        `${JSON.stringify({ type: "reasoning-delta", text: " second" })}\n`,
+        `${JSON.stringify({ type: "reasoning-end" })}\n`,
+        `${JSON.stringify({ type: "finish", finishReason: "stop" })}\n`,
+      ],
+      delays: [0, 100, 0, 0],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+    const stream = streamCommandCode(makeModel(), makeContext(), { apiKey: "mock-key" })
+    const iterator = stream[Symbol.asyncIterator]()
+
+    assert.equal((await iterator.next()).value.type, "start")
+    assert.equal((await iterator.next()).value.type, "thinking_start")
+    const firstDelta = (await iterator.next()).value
+    assert.equal(firstDelta.type, "thinking_delta")
+    assert.equal(firstDelta.type === "thinking_delta" ? firstDelta.delta : "", "first")
+
+    const remaining: AssistantMessageEvent[] = []
+    for (;;) {
+      const next = await iterator.next()
+      if (next.done) break
+      remaining.push(next.value)
+      if (next.value.type === "done" || next.value.type === "error") break
+    }
+    assert.equal(remaining.at(-1)?.type, "done")
+  })
+
   it("flushes reasoning if finish arrives without reasoning-end", async () => {
     server.mockResponse({
       type: "success",
@@ -270,7 +326,7 @@ describe("streamCommandCode — request serialization", () => {
 
     const headers = server.lastRequestHeaders()
     assert.equal(headers.authorization, "Bearer mock-key")
-    assert.equal(headers["x-command-code-version"], "0.40.8")
+    assert.equal(headers["x-command-code-version"], "1.14.1")
     assert.equal(headers["x-session-id"], "00000000-0000-4000-8000-000000000000")
   })
 
@@ -319,6 +375,73 @@ describe("streamCommandCode — request serialization", () => {
     assert.equal(server.lastRequestHeaders()["x-custom"], "value")
   })
 
+  it("forwards current OMP temperature, reasoning effort, and stable session id", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    await collectEvents(
+      streamCommandCode(
+        makeModel({ thinking: { mode: "effort", efforts: ["low", "medium", "high"] } }),
+        makeContext(),
+        {
+          apiKey: "mock-key",
+          temperature: 0.25,
+          reasoning: "high",
+          sessionId: "omp-session",
+        },
+      ),
+    )
+
+    assert.equal(objectAt(server.lastRequestBody(), ["params", "temperature"]), 0.25)
+    assert.equal(objectAt(server.lastRequestBody(), ["params", "reasoning_effort"]), "high")
+    assert.equal(server.lastRequestHeaders()["x-session-id"], "omp-session")
+  })
+
+  it("maps disableReasoning to the model's lowest supported effort and omits unsupported efforts", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "finish", finishReason: "stop" })],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+    const effortModel = makeModel({
+      thinking: { mode: "effort", efforts: ["low", "medium", "high"] },
+    })
+
+    await collectEvents(
+      streamCommandCode(effortModel, makeContext(), {
+        apiKey: "mock-key",
+        disableReasoning: true,
+        reasoning: "high",
+      }),
+    )
+    assert.equal(objectAt(server.lastRequestBody(), ["params", "reasoning_effort"]), "low")
+
+    await collectEvents(
+      streamCommandCode(effortModel, makeContext(), {
+        apiKey: "mock-key",
+        reasoning: "max",
+      }),
+    )
+    assert.equal(objectAt(server.lastRequestBody(), ["params", "reasoning_effort"]), undefined)
+
+    await collectEvents(
+      streamCommandCode(
+        makeModel({
+          thinking: { mode: "effort", efforts: ["minimal", "low", "medium", "high"] },
+        }),
+        makeContext(),
+        {
+          apiKey: "mock-key",
+          reasoning: "minimal",
+        },
+      ),
+    )
+    assert.equal(objectAt(server.lastRequestBody(), ["params", "reasoning_effort"]), "low")
+  })
+
   it("joins OMP system prompt fragments for the Command Code API", async () => {
     server.mockResponse({
       type: "success",
@@ -361,7 +484,7 @@ describe("streamCommandCode — request serialization", () => {
 
     assert.deepEqual(objectAt(server.lastRequestBody(), ["params", "messages", "0", "content"]), [
       { type: "text", text: "What is this?" },
-      { type: "image", image: "data:image/png;base64,abc123" },
+      { type: "image", image: "data:image/png;base64,abc123", mimeType: "image/png" },
     ])
   })
 
@@ -389,6 +512,81 @@ describe("streamCommandCode — request serialization", () => {
 })
 
 describe("streamCommandCode — upstream errors and malformed streams", () => {
+  it("rejects EOF without a finish or abort terminal event as truncated", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "text-delta", text: "partial" })],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), { apiKey: "mock-key" }),
+    )
+
+    assert.deepEqual(eventTypes(events), ["start", "text_start", "text_delta", "error"])
+    const last = events.at(-1)
+    if (last?.type !== "error") throw new Error("expected error")
+    assert.match(last.error.errorMessage ?? "", /truncated|unexpectedly/i)
+  })
+
+  it("accepts Command Code abort as an explicit terminal event", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [JSON.stringify({ type: "abort" })],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), { apiKey: "mock-key" }),
+    )
+
+    assert.deepEqual(eventTypes(events), ["start", "done"])
+  })
+
+  it("preserves nested provider status and retryability when reporting an error", async () => {
+    server.mockResponse({
+      type: "success",
+      events: [
+        JSON.stringify({
+          type: "error",
+          error: { message: "quota blocked", statusCode: 402, isRetryable: false },
+        }),
+      ],
+    })
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), { apiKey: "mock-key", maxRetries: 2 }),
+    )
+
+    assert.equal(server.requestCount(), 1)
+    const last = events.at(-1)
+    if (last?.type !== "error") throw new Error("expected error")
+    assert.match(last.error.errorMessage ?? "", /402/)
+    assert.match(last.error.errorMessage ?? "", /quota blocked/)
+  })
+
+  it("redacts the active API key from HTTP and stream error messages", async () => {
+    const secret = "user_super_secret_key"
+    server.mockResponseQueue([
+      { type: "error", status: 400, body: `invalid Bearer ${secret}` },
+      {
+        type: "success",
+        events: [JSON.stringify({ type: "error", error: { message: `leaked ${secret}` } })],
+      },
+    ])
+    const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
+
+    for (let index = 0; index < 2; index += 1) {
+      const events = await collectEvents(
+        streamCommandCode(makeModel(), makeContext(), { apiKey: secret }),
+      )
+      const last = events.at(-1)
+      if (last?.type !== "error") throw new Error("expected error")
+      assert.doesNotMatch(last.error.errorMessage ?? "", new RegExp(secret))
+      assert.match(last.error.errorMessage ?? "", /\[REDACTED\]/)
+    }
+  })
   it("emits error for HTTP failures", async () => {
     server.mockResponse({ type: "error", status: 429, body: "rate limited" })
     const { streamCommandCode } = createTestDeps({ apiBase: server.baseUrl() })
