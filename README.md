@@ -211,8 +211,9 @@ and reports additions or removals without changing the runtime catalog.
 ## Development And Verification
 
 Installing the extension does not require these commands. Contributors can run
-the test suite with Node.js 22 or newer, which executes TypeScript without
-installing a transpiler:
+the test suite with Node.js 22.18 or newer, which provides unflagged
+`node:sqlite` support and executes TypeScript by default without installing a
+transpiler:
 
 ```sh
 node --version

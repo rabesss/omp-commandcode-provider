@@ -208,7 +208,8 @@ describe("Command Code model registry", () => {
 
     removed.length = 0
     handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
-    assert.deepEqual(removed, ["commandcode"])
+    handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
+    assert.deepEqual(removed, ["commandcode", "commandcode"])
 
     removed.length = 0
     context.model = { provider: "other" }
@@ -225,6 +226,21 @@ describe("Command Code model registry", () => {
     context.modelRegistry.authStorage.has = () => false
     handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
     assert.deepEqual(removed, [])
+
+    for (const event of ["session_start", "before_provider_request"]) {
+      assert.doesNotThrow(() => {
+        handlers.get(event)?.(
+          { type: event },
+          { model: { provider: "commandcode" } },
+        )
+      })
+      assert.doesNotThrow(() => {
+        handlers.get(event)?.(
+          { type: event },
+          { model: { provider: "commandcode" }, modelRegistry: {} },
+        )
+      })
+    }
   })
 
   it("resolves a pricing row for every committed model id", () => {

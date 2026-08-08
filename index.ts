@@ -62,8 +62,8 @@ interface ModelsJson {
 
 interface CredentialContext {
   model?: { provider: string }
-  modelRegistry: {
-    authStorage: {
+  modelRegistry?: {
+    authStorage?: {
       has(provider: string): boolean
       removeConfigApiKey(provider: string): void
     }
@@ -136,8 +136,11 @@ const streamCommandCode = createStreamCommandCode({
 
 export default function (pi: ExtensionAPI) {
   const preferStoredCredential = (ctx: CredentialContext) => {
-    if (ctx.model?.provider === PROVIDER_ID && ctx.modelRegistry.authStorage.has(PROVIDER_ID)) {
-      ctx.modelRegistry.authStorage.removeConfigApiKey(PROVIDER_ID)
+    const authStorage = ctx.modelRegistry?.authStorage
+    if (ctx.model?.provider === PROVIDER_ID && authStorage?.has(PROVIDER_ID)) {
+      // OMP 17.2.10 implements this as an idempotent Map.delete on the
+      // in-memory config override; it never edits ~/.omp/agent/.env or the DB.
+      authStorage.removeConfigApiKey(PROVIDER_ID)
     }
   }
 
