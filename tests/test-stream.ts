@@ -371,7 +371,11 @@ describe("streamCommandCode — request serialization", () => {
       streamCommandCode(makeModel({ maxTokens: 500_000 }), makeContext(), {
         apiKey: "mock-key",
         maxTokens: 500_000,
-        headers: { "x-custom": "value", "user-agent": "custom-client" },
+        headers: {
+          "x-custom": "value",
+          "user-agent": "custom-client",
+          "USER-AGENT": "uppercase-client",
+        },
       }),
     )
 

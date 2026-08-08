@@ -185,7 +185,15 @@ describe("Command Code model registry", () => {
     assert.ok(handlers.has("before_provider_request"))
 
     const removed: string[] = []
-    const context = {
+    const context: {
+      model: { provider: string } | undefined
+      modelRegistry: {
+        authStorage: {
+          has: () => boolean
+          removeConfigApiKey: (provider: string) => number
+        }
+      }
+    } = {
       model: { provider: "commandcode" },
       modelRegistry: {
         authStorage: {
@@ -205,10 +213,12 @@ describe("Command Code model registry", () => {
     removed.length = 0
     context.model = { provider: "other" }
     handlers.get("session_start")?.({ type: "session_start" }, context)
+    handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
     assert.deepEqual(removed, [])
 
     context.model = undefined
     handlers.get("session_start")?.({ type: "session_start" }, context)
+    handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
     assert.deepEqual(removed, [])
 
     context.model = { provider: "commandcode" }
