@@ -392,6 +392,41 @@ describe("Command Code model registry", () => {
     const missingListResult = buildRuntimeCatalog(missingListRate)
     assert.equal(missingListResult.models.some((entry) => entry.id === "gpt-5.6-terra"), false)
     assert.ok(missingListResult.issues.includes("missing first-tier pricing for gpt-5.6-terra"))
+
+    const missingTiers = structuredClone(modelsJson)
+    const missingTiersRow = missingTiers.source.pricingDocs.rows.find(
+      (entry) => entry.id === "gpt-5.4",
+    )
+    assert.ok(missingTiersRow)
+    delete (missingTiersRow as Partial<typeof missingTiersRow>).tiers
+    const missingTiersResult = buildRuntimeCatalog(missingTiers)
+    assert.equal(missingTiersResult.models.length, 51)
+    assert.ok(missingTiersResult.issues.includes("missing first-tier pricing for gpt-5.4"))
+
+    const missingRates = structuredClone(modelsJson)
+    const missingRatesRow = missingRates.source.pricingDocs.rows.find(
+      (entry) => entry.id === "gpt-5.4",
+    )
+    assert.ok(missingRatesRow)
+    delete (missingRatesRow.tiers[0] as Partial<(typeof missingRatesRow.tiers)[number]>).rates
+    const missingRatesResult = buildRuntimeCatalog(missingRates)
+    assert.equal(missingRatesResult.models.length, 51)
+    assert.ok(missingRatesResult.issues.includes("invalid first-tier pricing for gpt-5.4"))
+  })
+
+  it("treats missing plan availability as unavailable without failing registration", () => {
+    const corrupt = structuredClone(modelsJson)
+    const row = corrupt.source.pricingDocs.rows.find((entry) => entry.id === "gpt-5.4")
+    assert.ok(row)
+    delete (row as Partial<typeof row>).availability
+
+    const result = buildRuntimeCatalog(corrupt)
+    assert.equal(result.models.length, 52)
+    assert.deepEqual(result.issues, [])
+    assert.equal(
+      result.models.find((entry) => entry.id === "gpt-5.4")?.availableOnIndividualGo,
+      false,
+    )
   })
 
   it("keeps plan lookup safe when optional catalog structures are corrupt", () => {

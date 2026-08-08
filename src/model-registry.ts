@@ -84,7 +84,7 @@ function staticRates(row: CatalogDocsRow): {
   rates: CatalogRates
   basis: RuntimeCatalogModel["pricingBasis"]
 } | undefined {
-  const firstTier = row.tiers[0]
+  const firstTier = row.tiers?.[0]
   if (!firstTier) return undefined
 
   // Date-bounded discounts make a committed runtime price silently stale when
@@ -131,6 +131,10 @@ export function buildRuntimeCatalog(catalog: ModelsJson): RuntimeCatalogResult {
       issues.push(`missing first-tier pricing for ${model.id}`)
       continue
     }
+    if (!selected.rates || typeof selected.rates !== "object") {
+      issues.push(`invalid first-tier pricing for ${model.id}`)
+      continue
+    }
     const { input, output, cacheRead, cacheWrite } = selected.rates
     if (
       !finiteNonNegative(input) ||
@@ -146,7 +150,7 @@ export function buildRuntimeCatalog(catalog: ModelsJson): RuntimeCatalogResult {
 
     models.push({
       ...model,
-      availableOnIndividualGo: row.availability["individual-go"] === true,
+      availableOnIndividualGo: row.availability?.["individual-go"] === true,
       cost: {
         input,
         output,

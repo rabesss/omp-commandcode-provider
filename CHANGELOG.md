@@ -34,6 +34,7 @@
   collisions or missing prices from being presented as free usage.
 - Retry catalog rate limits (with bounded `Retry-After` handling) and body-stage
   transport failures as transient errors, surface any runtime model skipped for
-  corrupt pricing, and reject expiring deals without a stable list rate.
+  corrupt pricing, guard malformed runtime tier and availability fields, and
+  reject expiring deals without a stable list rate.
 - Clear a pinned login key after its stored credential is deleted, and verify
   raw live-test output for credential-shaped leaks before scrubbing diagnostics.
