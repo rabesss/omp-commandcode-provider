@@ -239,5 +239,17 @@ describe("committed model catalog", () => {
         expected,
       )
     }
+
+    for (const readFileImpl of [
+      async () => {
+        throw new Error("ENOENT fixture")
+      },
+      async () => "not json",
+    ]) {
+      assert.equal(
+        await runModelCatalogCli([], { ...baseDeps, readFileImpl }),
+        EXIT_CODES.EXTRACTION_FAILURE,
+      )
+    }
   })
 })
