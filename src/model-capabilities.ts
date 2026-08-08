@@ -3,7 +3,7 @@ export const TEXT_IMAGE_INPUT = ["text", "image"] as const
 
 /**
  * Vision-capable Command Code models (matches command-code CLI inputModalities).
- * Source: command-code@1.14.1 model catalog.
+ * Source: command-code@1.15.0 model catalog.
  */
 export type ModelInputModalities = typeof TEXT_INPUT | typeof TEXT_IMAGE_INPUT
 

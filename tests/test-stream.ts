@@ -330,7 +330,7 @@ describe("streamCommandCode — request serialization", () => {
     const headers = server.lastRequestHeaders()
     assert.equal(headers.authorization, "Bearer mock-key")
     assert.equal(headers["user-agent"], "cli")
-    assert.equal(headers["x-command-code-version"], "1.14.1")
+    assert.equal(headers["x-command-code-version"], "1.15.0")
     assert.equal(headers["x-session-id"], "00000000-0000-4000-8000-000000000000")
   })
 
@@ -609,6 +609,34 @@ describe("streamCommandCode — upstream errors and malformed streams", () => {
     assert.equal(error?.type, "error")
     if (error?.type !== "error") throw new Error("expected error")
     assert.match(error.error.errorMessage ?? "", /429/)
+  })
+
+  it("adds an Individual Go hint only for a matching plan-entitlement error", async () => {
+    server.mockResponse({
+      type: "error",
+      status: 403,
+      body: "This model is not included in your subscription plan",
+    })
+    const { streamCommandCode } = createTestDeps({
+      apiBase: server.baseUrl(),
+      isAvailableOnIndividualGo: (modelId) => modelId !== "deepseek/deepseek-v4-flash",
+    })
+
+    const events = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), { apiKey: "mock-key" }),
+    )
+    const error = events.at(-1)
+    if (error?.type !== "error") throw new Error("expected error")
+    assert.match(error.error.errorMessage ?? "", /not currently listed for Individual Go/)
+
+    server.reset()
+    server.mockResponse({ type: "error", status: 400, body: "insufficient credits" })
+    const creditEvents = await collectEvents(
+      streamCommandCode(makeModel(), makeContext(), { apiKey: "mock-key" }),
+    )
+    const creditError = creditEvents.at(-1)
+    if (creditError?.type !== "error") throw new Error("expected error")
+    assert.doesNotMatch(creditError.error.errorMessage ?? "", /Individual Go/)
   })
 
   it("emits error for provider error events", async () => {

@@ -185,4 +185,5 @@ export interface CoreDependencies {
   uuid?: () => string
   homeDir?: () => string
   delay?: (ms: number, signal: AbortSignal) => Promise<void>
+  isAvailableOnIndividualGo?: (modelId: string) => boolean | undefined
 }

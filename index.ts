@@ -22,6 +22,12 @@ import {
   modelInputModalities,
 } from "./src/core.ts"
 import { getApiKey, login, refreshToken } from "./src/oauth.ts"
+import {
+  buildRuntimeCatalog,
+  isAvailableOnIndividualGo,
+  reportRuntimeCatalogIssues,
+  type ModelsJson,
+} from "./src/model-registry.ts"
 import { calculateCost, createAssistantMessageEventStream } from "./src/runtime.ts"
 
 const API_BASE = process.env.COMMANDCODE_API_BASE ?? DEFAULT_API_BASE
@@ -32,45 +38,24 @@ const modelsJsonData = JSON.parse(readFileSync(new URL("./models.json", import.m
 // Load model definitions from models.json
 // ---------------------------------------------------------------------------
 
-interface ModelsJson {
-  providers: Record<string, string>
-  models: Array<{
-    key: string
-    id: string
-    provider: string
-    spec: string
-    label: string
-    name: string
-    description: string
-    reasoning: boolean
-    reasoningEfforts: string[] | null
-    contextWindow: number
-    maxOutputTokens: number
-    vendorLabel: string | null
-  }>
-  pricing: Array<{
-    provider: string
-    id: string
-    category: string
-    promptCost: number
-    completionCost: number
-    cacheWrite5mCost: number
-    cacheWrite1hCost: number
-    cacheHitCost: number
-  }>
-}
-
 interface CredentialContext {
   model?: { provider: string }
   modelRegistry?: {
     authStorage?: {
-      has(provider: string): boolean
+      getAll?(): Record<
+        string,
+        | { type?: string; key?: string; source?: string }
+        | Array<{ type?: string; key?: string; source?: string }>
+      >
+      setConfigApiKey?(provider: string, apiKey: string): void
       removeConfigApiKey(provider: string): void
     }
   }
 }
 
 const modelsJson = modelsJsonData as ModelsJson
+const runtimeCatalog = buildRuntimeCatalog(modelsJson)
+reportRuntimeCatalogIssues(runtimeCatalog.issues)
 
 const MODEL_OVERRIDES: Record<string, { contextWindow?: number; maxTokens?: number }> = {
   // OMP represents the usable input context separately from the output budget.
@@ -81,25 +66,10 @@ const MODEL_OVERRIDES: Record<string, { contextWindow?: number; maxTokens?: numb
 }
 
 // ---------------------------------------------------------------------------
-// Build cost lookup (model id -> pricing)
-// ---------------------------------------------------------------------------
-
-const costByModelId = new Map<string, ModelsJson["pricing"][number]>()
-for (const p of modelsJson.pricing) {
-  // Pricing id is like "anthropic:claude-sonnet-4-6"
-  const colonIdx = p.id.indexOf(":")
-  if (colonIdx > 0) {
-    costByModelId.set(p.id.substring(colonIdx + 1), p)
-  }
-  costByModelId.set(p.id, p)
-}
-
-// ---------------------------------------------------------------------------
 // Build OMP model list (all defaults come from models.json)
 // ---------------------------------------------------------------------------
 
-const MODELS = modelsJson.models.map((m) => {
-  const cost = costByModelId.get(m.id)
+const MODELS = runtimeCatalog.models.map((m) => {
   const override = MODEL_OVERRIDES[m.id]
   return {
     id: m.id,
@@ -111,12 +81,7 @@ const MODELS = modelsJson.models.map((m) => {
         : undefined,
     contextWindow: override?.contextWindow ?? m.contextWindow,
     maxTokens: override?.maxTokens ?? m.maxOutputTokens,
-    cost: {
-      input: cost?.promptCost ?? 0,
-      output: cost?.completionCost ?? 0,
-      cacheRead: cost?.cacheHitCost ?? 0,
-      cacheWrite: Math.max(cost?.cacheWrite5mCost ?? 0, cost?.cacheWrite1hCost ?? 0),
-    },
+    cost: m.cost,
   }
 })
 
@@ -128,6 +93,7 @@ const streamCommandCode = createStreamCommandCode({
   createStream: createAssistantMessageEventStream,
   calculateCost,
   apiBase: API_BASE,
+  isAvailableOnIndividualGo: (modelId) => isAvailableOnIndividualGo(modelsJson, modelId),
 })
 
 // ---------------------------------------------------------------------------
@@ -135,17 +101,37 @@ const streamCommandCode = createStreamCommandCode({
 // ---------------------------------------------------------------------------
 
 export default function (pi: ExtensionAPI) {
-  const preferStoredCredential = (ctx: CredentialContext) => {
+  const preferCurrentLoginCredential = (ctx: CredentialContext) => {
     const authStorage = ctx.modelRegistry?.authStorage
-    if (ctx.model?.provider === PROVIDER_ID && authStorage?.has(PROVIDER_ID)) {
-      // OMP 17.2.10 implements this as an idempotent Map.delete on the
+    if (ctx.model?.provider !== PROVIDER_ID || !authStorage) return
+
+    const stored = authStorage.getAll?.()[PROVIDER_ID]
+    const credentials = stored === undefined ? [] : Array.isArray(stored) ? stored : [stored]
+    const currentLoginKey = credentials
+      .filter(
+        (credential) =>
+          credential.type === "api_key" &&
+          credential.source === "login" &&
+          typeof credential.key === "string" &&
+          credential.key.length > 0,
+      )
+      // OMP 17.2.11 loads SQLite credentials by ascending row id and getAll()
+      // preserves that order, so the newest distinct pasted key is last.
+      .at(-1)?.key
+
+    if (currentLoginKey && authStorage.setConfigApiKey) {
+      // OMP resolves an in-memory config key ahead of legacy OAuth rows. This
+      // keeps a freshly pasted one-time API key active without mutating the DB.
+      authStorage.setConfigApiKey(PROVIDER_ID, currentLoginKey)
+    } else {
+      // OMP 17.2.11 implements this as an idempotent Map.delete on the
       // in-memory config override; it never edits ~/.omp/agent/.env or the DB.
       authStorage.removeConfigApiKey(PROVIDER_ID)
     }
   }
 
-  pi.on("session_start", (_event, ctx) => preferStoredCredential(ctx))
-  pi.on("before_provider_request", (_event, ctx) => preferStoredCredential(ctx))
+  pi.on("session_start", (_event, ctx) => preferCurrentLoginCredential(ctx))
+  pi.on("before_provider_request", (_event, ctx) => preferCurrentLoginCredential(ctx))
 
   pi.registerProvider(PROVIDER_ID, {
     name: "Command Code",

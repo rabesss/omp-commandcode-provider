@@ -6,6 +6,8 @@ import { accessSync, constants } from "node:fs"
 import { delimiter, dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { redactSensitiveText } from "../src/redaction.ts"
+
 const projectDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const extensionPath = resolve(projectDir, "index.ts")
 
@@ -26,6 +28,11 @@ function findOmpBinary() {
 const omp = findOmpBinary()
 if (!omp) throw new Error("OMP_BIN is unset and omp was not found on PATH")
 const liveModel = process.env.COMMAND_CODE_LIVE_MODEL ?? "poolside/laguna-s-2.1-free"
+assert.equal(
+  liveModel,
+  "poolside/laguna-s-2.1-free",
+  "live OMP smoke is pinned to the allowlisted free model",
+)
 
 const result = spawnSync(
   omp,
@@ -34,6 +41,7 @@ const result = spawnSync(
     extensionPath,
     "--no-tools",
     "--no-session",
+    "--max-time=45",
     "--thinking",
     "minimal",
     "-p",
@@ -41,9 +49,14 @@ const result = spawnSync(
     `commandcode/${liveModel}`,
     "Reply with exactly: commandcode-live-ok",
   ],
-  { cwd: projectDir, encoding: "utf8", timeout: 120_000 },
+  { cwd: projectDir, encoding: "utf8", timeout: 60_000 },
 )
 
-assert.equal(result.status, 0, result.stderr)
-assert.match(result.stdout, /commandcode-live-ok/)
+const rawOutput = `${result.stdout}\n${result.stderr}`
+const leakedCredential = /Bearer\s+(?!\[REDACTED\])|\buser_(?!\[REDACTED\])/.test(rawOutput)
+assert.equal(leakedCredential, false, "live OMP output contained credential-shaped data")
+const stdout = redactSensitiveText(result.stdout)
+const stderr = redactSensitiveText(result.stderr)
+assert.equal(result.status, 0, stderr)
+assert.match(stdout, /commandcode-live-ok/)
 console.log("[omp-live] PASS")

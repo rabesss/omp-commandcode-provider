@@ -36,7 +36,7 @@ send inference requests to `/provider/v1` and does not require a custom API.
 The public `/provider/v1/models` endpoint is used only by the opt-in development
 drift check. The internal generation endpoint is unofficial and may change in a
 future Command Code release, so compatibility is pinned and tested against
-Command Code CLI 1.14.1.
+Command Code CLI 1.15.0.
 
 ## Install
 
@@ -57,7 +57,7 @@ extensions:
 
 OMP also documents native package-directory discovery through the included
 `omp.extensions` manifest, but the explicit entry is the reliable installation
-path tested against OMP 17.2.10.
+path tested against OMP 17.2.11.
 
 No package-manager install or build step is required. Restart `omp`, then verify
 registration:
@@ -114,7 +114,9 @@ callback transfer is unavailable, it prompts for the API key from the browser
 after 15 seconds. OMP 17 accepts the returned API key directly. Older
 OAuth-shaped saved credentials remain readable for compatibility. The provider
 uses OMP's saved credential even when a stale Command Code key remains in
-`~/.omp/agent/.env`.
+`~/.omp/agent/.env`. When OMP still contains older OAuth-shaped Command Code
+rows, the most recently pasted login API key is pinned in memory for the
+request; the extension does not rewrite or delete the credential database.
 
 The provider also retains the original compatibility fallback for
 `~/.commandcode/auth.json` and legacy `~/.pi/agent/auth.json` credential files.
@@ -135,9 +137,8 @@ through qualified `--model commandcode/<model-id>` selectors.
 
 ## Models
 
-The committed registry matches the active Command Code Provider API list and
-Command Code CLI 1.14.1 catalog checked for this adaptation and exposes all 52
-active entries:
+The committed registry matches the 52 models currently exposed by the Command
+Code Provider API and the reviewed Command Code CLI 1.15.0 catalog:
 
 | Family | Model IDs |
 | --- | --- |
@@ -159,8 +160,41 @@ active entries:
 | Meta | `meta/muse-spark-1.1`, `meta/muse-spark-1.2`, `meta/muse-spark-1.2-contributor` |
 | xAI | `xai/grok-4.5` |
 
-The extension does not hide or disable models by Command Code account plan. It
-exposes the committed catalog and lets Command Code return any access error.
+The pricing/limits docs currently contain 55 rows: all 52 API models, one active
+docs-only model (`claude-opus-4-6`), and two deprecated models
+(`ling-3.0-flash-free` and `claude-sonnet-4-5`). The extension never registers
+docs-only or deprecated rows automatically. Exactly 32 of the 52 API models are
+currently listed for Individual Go.
+
+The extension preserves all 52 API models instead of filtering by account plan,
+because plan access can change independently of a release. Models outside Go
+are marked in the committed descriptions, and a recognizable upstream
+plan-entitlement error gains an Individual Go hint. Command Code remains the
+authority on actual account access.
+
+### Catalog Sources And Automatic Fields
+
+`models.json` is an offline reviewed snapshot with explicit source boundaries:
+
+- Provider API: exact live IDs, display names, context windows, and ordering.
+- Pricing/limits docs: plan availability, text/vision/reasoning flags, input and
+  output rates, cache-read and five-minute cache-write rates, tier boundaries,
+  deals, future price notes, and deprecation state.
+- Command Code CLI 1.15.0: maximum output, reasoning-effort choices, input
+  modalities, descriptions, and vendor/provider labels. These fields remain
+  manual because the CLI exposes no supported rich catalog endpoint.
+- Reviewed conflict records: source disagreements and their dated decision.
+
+This means source-exposed fields can be checked and proposed automatically.
+New models are report-only until every CLI-only rich field has been reviewed;
+the maintenance command never invents them or mutates `models.json`.
+
+OMP accepts one flat cost per token dimension. The extension therefore uses the
+first documented tier. Permanent/current deal rates are reflected, while a
+date-bounded deal uses its first-tier list rate so the committed estimate does
+not silently expire. A missing cache dimension is stored as unsupported rather
+than as a source price of zero. These are advisory estimates only; tiers, deals,
+and the final bill remain authoritative in Command Code Studio Usage.
 
 The extension applies two runtime metadata corrections without altering the
 audited registry: `gpt-5.3-codex` is exposed with a `272K` usable input
@@ -175,19 +209,20 @@ user image blocks are serialized to Command Code's current `{ type: "image",
 image: "data:<mime>;base64,...", mimeType: "<mime>" }` wire format; text-only
 models keep a placeholder instead of silently dropping attachments.
 
-When Command Code changes its live model list, check it without installing or
-executing npm package contents:
+Check both public sources without installing or executing npm package contents:
 
 ```sh
-node scripts/sync-upstream-models.mjs
-git diff -- models.json
-node --test tests/test-model-registry.ts
+npm run models:check
+npm run models:proposal
+node --test tests/test-model-catalog.ts tests/test-model-registry.ts
 ```
 
-The synchronizer downloads only the public Provider API model list. Update
-`models.json` manually from Command Code docs when model metadata or pricing
-changes. The repository's weekly `model-drift` workflow runs the same comparison
-and reports additions or removals without changing the runtime catalog.
+`models:check` is read-only and distinguishes catalog drift, transient network
+failure, and structural extraction failure. It validates both the Provider API
+and the official pricing page against strict shape/count/mapping invariants.
+`models:proposal` emits a deterministic old/new report with
+`writesPerformed: false`; it does not update the runtime catalog. The weekly
+workflow uses the same read-only check.
 
 ## Features
 
@@ -219,28 +254,31 @@ transpiler:
 node --version
 node --test tests/test-pure-functions.ts tests/test-oauth.ts \
   tests/test-abort.ts tests/test-stream.ts tests/test-retry.ts \
-  tests/test-model-registry.ts
+  tests/test-model-catalog.ts tests/test-model-registry.ts
 OMP_BIN="$(command -v omp)" node tests/test-omp-local.mjs
 ```
 
 `tests/test-omp-local.mjs` starts a local mock Command Code endpoint and
 exercises the actual `omp` binary in both print and RPC modes without sending a
 credential to Command Code. With the existing Command Code credential, run the
-live smoke test explicitly. It defaults to the currently advertised free Laguna
-model so it does not consume Go-plan credits, although Command Code can still
-reject it for capacity or account-state reasons. Override
-`COMMAND_CODE_LIVE_MODEL` when needed:
+live smoke test explicitly. The direct adapter test reads the existing enabled
+OMP credential without printing it, pins the free Laguna model, caps output at
+eight tokens, and validates stream completion plus usage. The OMP-level test is
+also pinned to Laguna and will reject model overrides rather than risk a billed
+fallback. Command Code can still reject the free model for capacity or account
+state.
 
 ```sh
-OMP_BIN="$(command -v omp)" node tests/test-live-omp.mjs
+npm run test:live
 ```
 
 ## Compatibility Sources
 
-- [OMP v17.2.10](https://github.com/can1357/oh-my-pi/releases/tag/v17.2.10)
+- [OMP v17.2.11](https://github.com/can1357/oh-my-pi/releases/tag/v17.2.11)
 - [Command Code changelog](https://commandcode.ai/docs/resources/changelog)
 - [Command Code pricing and plan limits](https://commandcode.ai/docs/resources/pricing-limits)
-- Command Code CLI 1.14.1's installed generated model reference
+- Command Code CLI 1.15.0's installed generated model reference. At the review
+  date, the public changelog's latest CLI entry was still 1.14.0.
 
 ## License
 
