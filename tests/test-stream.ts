@@ -329,6 +329,7 @@ describe("streamCommandCode — request serialization", () => {
 
     const headers = server.lastRequestHeaders()
     assert.equal(headers.authorization, "Bearer mock-key")
+    assert.equal(headers["user-agent"], "cli")
     assert.equal(headers["x-command-code-version"], "1.14.1")
     assert.equal(headers["x-session-id"], "00000000-0000-4000-8000-000000000000")
   })

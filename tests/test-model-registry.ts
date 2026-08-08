@@ -92,6 +92,7 @@ describe("Command Code model registry", () => {
       | undefined
 
     commandCodeExtension({
+      on() {},
       registerProvider(name, config) {
         providerName = name
         providerConfig = config as {
@@ -168,6 +169,35 @@ describe("Command Code model registry", () => {
       providerConfig?.models?.find((model) => model.id === "moonshotai/Kimi-K3")?.thinking,
       undefined,
     )
+  })
+
+  it("prefers stored login credentials over the environment fallback", () => {
+    const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>()
+
+    commandCodeExtension({
+      on(event, handler) {
+        handlers.set(event, handler)
+      },
+      registerProvider() {},
+    })
+
+    const removed: string[] = []
+    const context = {
+      model: { provider: "commandcode" },
+      modelRegistry: {
+        authStorage: {
+          has: () => true,
+          removeConfigApiKey: (provider: string) => removed.push(provider),
+        },
+      },
+    }
+
+    handlers.get("session_start")?.({ type: "session_start" }, context)
+    assert.deepEqual(removed, ["commandcode"])
+
+    context.modelRegistry.authStorage.has = () => false
+    handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
+    assert.deepEqual(removed, ["commandcode"])
   })
 
   it("resolves a pricing row for every committed model id", () => {

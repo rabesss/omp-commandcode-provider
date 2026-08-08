@@ -6,9 +6,10 @@
 
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
-import { accessSync, constants } from "node:fs"
+import { accessSync, constants, mkdtempSync, rmSync } from "node:fs"
 import { createServer } from "node:http"
-import { delimiter, dirname, resolve } from "node:path"
+import { tmpdir } from "node:os"
+import { delimiter, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -16,6 +17,7 @@ const PROJECT_DIR = resolve(__dirname, "..")
 const EXT_PATH = resolve(PROJECT_DIR, "index.ts")
 const TEST_MODEL = "deepseek/deepseek-v4-flash"
 const TEST_MODEL_SELECTOR = `commandcode/${TEST_MODEL}`
+const TEST_AGENT_DIR = mkdtempSync(join(tmpdir(), "omp-commandcode-provider-test-"))
 
 function findOmpBinary() {
   if (process.env.OMP_BIN) return process.env.OMP_BIN
@@ -93,7 +95,9 @@ const apiBase = `http://127.0.0.1:${port}`
 const env = {
   ...process.env,
   COMMANDCODE_API_BASE: apiBase,
+  COMMAND_CODE_API_KEY: "",
   COMMANDCODE_API_KEY: "mock-key",
+  PI_CODING_AGENT_DIR: TEST_AGENT_DIR,
 }
 
 function runOmp(args, timeoutMs = 30_000) {
@@ -237,6 +241,8 @@ try {
       lastRequestHeaders.authorization.startsWith("Bearer "),
     "should send a bearer Authorization header",
   )
+  assert.equal(lastRequestHeaders.authorization, "Bearer mock-key")
+  assert.equal(lastRequestHeaders["user-agent"], "cli")
   assert.equal(lastRequestBody?.params?.model, TEST_MODEL)
 
   console.log("[omp-local] RPC prompt through real extension and mock API")
@@ -259,4 +265,5 @@ try {
   console.log("[omp-local] PASS")
 } finally {
   await new Promise((resolve) => server.close(resolve))
+  rmSync(TEST_AGENT_DIR, { recursive: true, force: true })
 }

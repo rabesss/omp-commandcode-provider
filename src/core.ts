@@ -582,6 +582,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
         const requestHeaders = {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
+          "User-Agent": "cli",
           "x-command-code-version": COMMAND_CODE_CLI_VERSION,
           "x-cli-environment": "production",
           "x-project-slug": "pi-cc",

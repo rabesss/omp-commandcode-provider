@@ -25,6 +25,7 @@ import { getApiKey, login, refreshToken } from "./src/oauth.ts"
 import { calculateCost, createAssistantMessageEventStream } from "./src/runtime.ts"
 
 const API_BASE = process.env.COMMANDCODE_API_BASE ?? DEFAULT_API_BASE
+const PROVIDER_ID = "commandcode"
 const modelsJsonData = JSON.parse(readFileSync(new URL("./models.json", import.meta.url), "utf8"))
 
 // ---------------------------------------------------------------------------
@@ -57,6 +58,16 @@ interface ModelsJson {
     cacheWrite1hCost: number
     cacheHitCost: number
   }>
+}
+
+interface CredentialContext {
+  model?: { provider: string }
+  modelRegistry: {
+    authStorage: {
+      has(provider: string): boolean
+      removeConfigApiKey(provider: string): void
+    }
+  }
 }
 
 const modelsJson = modelsJsonData as ModelsJson
@@ -124,7 +135,16 @@ const streamCommandCode = createStreamCommandCode({
 // ---------------------------------------------------------------------------
 
 export default function (pi: ExtensionAPI) {
-  pi.registerProvider("commandcode", {
+  const preferStoredCredential = (ctx: CredentialContext) => {
+    if (ctx.model?.provider === PROVIDER_ID && ctx.modelRegistry.authStorage.has(PROVIDER_ID)) {
+      ctx.modelRegistry.authStorage.removeConfigApiKey(PROVIDER_ID)
+    }
+  }
+
+  pi.on("session_start", (_event, ctx) => preferStoredCredential(ctx))
+  pi.on("before_provider_request", (_event, ctx) => preferStoredCredential(ctx))
+
+  pi.registerProvider(PROVIDER_ID, {
     name: "Command Code",
     baseUrl: API_BASE,
     apiKey: "COMMAND_CODE_API_KEY",
