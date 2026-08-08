@@ -145,6 +145,49 @@ describe("model catalog source validation", () => {
     assert.equal(recovered, '{"object":"list","data":[]}')
     assert.equal(rateLimitAttempts, 2)
     assert.deepEqual(retryDelays, [10])
+
+    let dateAttempts = 0
+    const dateDelays: number[] = []
+    const retryAt = new Date(Date.now() + 30_000).toUTCString()
+    await fetchSource(
+      "https://example.test/models",
+      "application/json",
+      async () => {
+        dateAttempts += 1
+        return dateAttempts === 1
+          ? new Response(null, { status: 429, headers: { "retry-after": retryAt } })
+          : new Response('{"object":"list","data":[]}', {
+              headers: { "content-type": "application/json" },
+            })
+      },
+      1,
+      async (ms) => {
+        dateDelays.push(ms)
+      },
+    )
+    assert.equal(dateAttempts, 2)
+    assert.equal(dateDelays.length, 1)
+    assert.ok(dateDelays[0] >= 28_000 && dateDelays[0] <= 30_000)
+
+    let cappedAttempts = 0
+    const cappedDelays: number[] = []
+    await assert.rejects(
+      fetchSource(
+        "https://example.test/models",
+        "application/json",
+        async () => {
+          cappedAttempts += 1
+          return new Response(null, { status: 429, headers: { "retry-after": "120" } })
+        },
+        2,
+        async (ms) => {
+          cappedDelays.push(ms)
+        },
+      ),
+      (error: unknown) => error instanceof CatalogSourceError && error.kind === "transient",
+    )
+    assert.equal(cappedAttempts, 1)
+    assert.deepEqual(cappedDelays, [])
   })
 })
 
