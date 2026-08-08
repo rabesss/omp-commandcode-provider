@@ -6,9 +6,11 @@
 
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
-import { accessSync, constants } from "node:fs"
+import { accessSync, constants, mkdtempSync, rmSync } from "node:fs"
 import { createServer } from "node:http"
-import { delimiter, dirname, resolve } from "node:path"
+import { tmpdir } from "node:os"
+import { delimiter, dirname, join, resolve } from "node:path"
+import { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -43,6 +45,7 @@ if (ompCheck.error || ompCheck.status !== 0) {
   throw new Error(`omp failed to start: ${ompCheck.error?.message ?? `exit ${ompCheck.status}`}`)
 }
 
+const TEST_AGENT_DIR = mkdtempSync(join(tmpdir(), "omp-commandcode-provider-test-"))
 let requestCount = 0
 let lastRequestBody
 let lastRequestHeaders = {}
@@ -85,16 +88,7 @@ const server = createServer((req, res) => {
   })
 })
 
-await new Promise((resolve) => server.listen(0, resolve))
-const address = server.address()
-const port = typeof address === "object" && address ? address.port : 0
-const apiBase = `http://127.0.0.1:${port}`
-
-const env = {
-  ...process.env,
-  COMMANDCODE_API_BASE: apiBase,
-  COMMANDCODE_API_KEY: "mock-key",
-}
+let env
 
 function runOmp(args, timeoutMs = 30_000) {
   return new Promise((resolve) => {
@@ -217,6 +211,25 @@ async function runRpcQuery(timeoutMs = 30_000) {
 }
 
 try {
+  await new Promise((resolve, reject) => {
+    const onError = (error) => reject(error)
+    server.once("error", onError)
+    server.listen(0, () => {
+      server.off("error", onError)
+      resolve()
+    })
+  })
+  const address = server.address()
+  const port = typeof address === "object" && address ? address.port : 0
+  const apiBase = `http://127.0.0.1:${port}`
+  env = {
+    ...process.env,
+    COMMANDCODE_API_BASE: apiBase,
+    COMMAND_CODE_API_KEY: "",
+    COMMANDCODE_API_KEY: "mock-key",
+    PI_CODING_AGENT_DIR: TEST_AGENT_DIR,
+  }
+
   console.log("[omp-local] list models through real extension")
   const list = await runOmp(["models", "commandcode", "--extension", EXT_PATH], 20_000)
   assert.equal(list.code, 0, list.stderr)
@@ -237,6 +250,8 @@ try {
       lastRequestHeaders.authorization.startsWith("Bearer "),
     "should send a bearer Authorization header",
   )
+  assert.equal(lastRequestHeaders.authorization, "Bearer mock-key")
+  assert.equal(lastRequestHeaders["user-agent"], "cli")
   assert.equal(lastRequestBody?.params?.model, TEST_MODEL)
 
   console.log("[omp-local] RPC prompt through real extension and mock API")
@@ -256,7 +271,45 @@ try {
   assert.equal(rpc.sawTextDelta, true)
   assert.equal(requestCount, 1)
 
+  console.log("[omp-local] canonical env credential is active before stored login")
+  env.COMMAND_CODE_API_KEY = "stale-env-key"
+
+  requestCount = 0
+  const staleEnv = await runOmp(
+    ["--extension", EXT_PATH, "-p", "say mock token", "--model", TEST_MODEL_SELECTOR],
+    30_000,
+  )
+  assert.equal(staleEnv.code, 0, staleEnv.stderr)
+  assert.match(staleEnv.stdout, /mock-omp-ok/)
+  assert.equal(requestCount, 1)
+  assert.equal(lastRequestHeaders.authorization, "Bearer stale-env-key")
+
+  console.log("[omp-local] stored login credential takes precedence over stale env")
+  // OMP v17.2.10 auth schema: packages/ai/src/auth/sqlite-credential-store.ts.
+  const authDb = new DatabaseSync(join(TEST_AGENT_DIR, "agent.db"))
+  authDb
+    .prepare("INSERT INTO auth_credentials (provider, credential_type, data) VALUES (?, ?, ?)")
+    .run(
+      "commandcode",
+      "api_key",
+      JSON.stringify({ key: "stored-mock-key", source: "login" }),
+    )
+  authDb.close()
+
+  requestCount = 0
+  const storedLogin = await runOmp(
+    ["--extension", EXT_PATH, "-p", "say mock token", "--model", TEST_MODEL_SELECTOR],
+    30_000,
+  )
+  assert.equal(storedLogin.code, 0, storedLogin.stderr)
+  assert.match(storedLogin.stdout, /mock-omp-ok/)
+  assert.equal(requestCount, 1)
+  assert.equal(lastRequestHeaders.authorization, "Bearer stored-mock-key")
+
   console.log("[omp-local] PASS")
 } finally {
-  await new Promise((resolve) => server.close(resolve))
+  if (server.listening) {
+    await new Promise((resolve) => server.close(resolve))
+  }
+  rmSync(TEST_AGENT_DIR, { recursive: true, force: true })
 }

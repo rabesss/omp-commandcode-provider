@@ -92,6 +92,7 @@ describe("Command Code model registry", () => {
       | undefined
 
     commandCodeExtension({
+      on() {},
       registerProvider(name, config) {
         providerName = name
         providerConfig = config as {
@@ -168,6 +169,78 @@ describe("Command Code model registry", () => {
       providerConfig?.models?.find((model) => model.id === "moonshotai/Kimi-K3")?.thinking,
       undefined,
     )
+  })
+
+  it("prefers stored login credentials over the environment fallback", () => {
+    const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>()
+
+    commandCodeExtension({
+      on(event, handler) {
+        handlers.set(event, handler)
+      },
+      registerProvider() {},
+    })
+
+    assert.ok(handlers.has("session_start"))
+    assert.ok(handlers.has("before_provider_request"))
+
+    const removed: string[] = []
+    const context: {
+      model: { provider: string } | undefined
+      modelRegistry: {
+        authStorage: {
+          has: () => boolean
+          removeConfigApiKey: (provider: string) => number
+        }
+      }
+    } = {
+      model: { provider: "commandcode" },
+      modelRegistry: {
+        authStorage: {
+          has: () => true,
+          removeConfigApiKey: (provider: string) => removed.push(provider),
+        },
+      },
+    }
+
+    handlers.get("session_start")?.({ type: "session_start" }, context)
+    assert.deepEqual(removed, ["commandcode"])
+
+    removed.length = 0
+    handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
+    handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
+    assert.deepEqual(removed, ["commandcode", "commandcode"])
+
+    removed.length = 0
+    context.model = { provider: "other" }
+    handlers.get("session_start")?.({ type: "session_start" }, context)
+    handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
+    assert.deepEqual(removed, [])
+
+    context.model = undefined
+    handlers.get("session_start")?.({ type: "session_start" }, context)
+    handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
+    assert.deepEqual(removed, [])
+
+    context.model = { provider: "commandcode" }
+    context.modelRegistry.authStorage.has = () => false
+    handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
+    assert.deepEqual(removed, [])
+
+    for (const event of ["session_start", "before_provider_request"]) {
+      assert.doesNotThrow(() => {
+        handlers.get(event)?.(
+          { type: event },
+          { model: { provider: "commandcode" } },
+        )
+      })
+      assert.doesNotThrow(() => {
+        handlers.get(event)?.(
+          { type: event },
+          { model: { provider: "commandcode" }, modelRegistry: {} },
+        )
+      })
+    }
   })
 
   it("resolves a pricing row for every committed model id", () => {

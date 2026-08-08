@@ -96,7 +96,8 @@ chmod 600 ~/.omp/agent/.env
 
 Do not commit that file or paste real credentials into issues.
 `COMMANDCODE_API_KEY` remains accepted as a legacy alias; the canonical current
-Command Code variable takes precedence when both are set.
+Command Code variable takes precedence when both are set. A credential saved by
+OMP's `/login` flow takes precedence over either environment fallback.
 
 ### Browser-Assisted Login
 
@@ -111,7 +112,9 @@ one-time `127.0.0.1` callback matching its loopback listener and CSRF state;
 wrong-state callbacks are rejected before any success response. If automatic
 callback transfer is unavailable, it prompts for the API key from the browser
 after 15 seconds. OMP 17 accepts the returned API key directly. Older
-OAuth-shaped saved credentials remain readable for compatibility.
+OAuth-shaped saved credentials remain readable for compatibility. The provider
+uses OMP's saved credential even when a stale Command Code key remains in
+`~/.omp/agent/.env`.
 
 The provider also retains the original compatibility fallback for
 `~/.commandcode/auth.json` and legacy `~/.pi/agent/auth.json` credential files.
@@ -208,8 +211,9 @@ and reports additions or removals without changing the runtime catalog.
 ## Development And Verification
 
 Installing the extension does not require these commands. Contributors can run
-the test suite with Node.js 22 or newer, which executes TypeScript without
-installing a transpiler:
+the test suite with Node.js 22.18 or newer, which provides unflagged
+`node:sqlite` support and executes TypeScript by default without installing a
+transpiler:
 
 ```sh
 node --version

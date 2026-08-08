@@ -10,6 +10,9 @@
     "provider"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rabesss/omp-commandcode-provider.git"

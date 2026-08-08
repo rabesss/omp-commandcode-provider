@@ -588,7 +588,12 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           "x-taste-learning": "false",
           "x-co-flag": "false",
           "x-session-id": options?.sessionId || uuid(),
-          ...options?.headers,
+          ...Object.fromEntries(
+            Object.entries(options?.headers ?? {}).filter(
+              ([header]) => header.toLowerCase() !== "user-agent",
+            ),
+          ),
+          "User-Agent": "cli",
         }
         const bodyStr = JSON.stringify(body)
 
