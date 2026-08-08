@@ -25,6 +25,7 @@ const DOC_ROW_KEYS = new Set([
   "tip",
 ])
 const RATE_KEYS = ["input", "output", "cacheRead", "cacheWrite"]
+const MAX_SOURCE_RETRY_DELAY_MS = 60_000
 
 export const PROVIDER_MODELS_URL = "https://api.commandcode.ai/provider/v1/models"
 export const PRICING_DOCS_URL = "https://commandcode.ai/docs/resources/pricing-limits"
@@ -38,10 +39,11 @@ export const EXIT_CODES = Object.freeze({
 })
 
 export class CatalogSourceError extends Error {
-  constructor(kind, message, cause) {
+  constructor(kind, message, cause, retryAfterMs) {
     super(message, cause === undefined ? undefined : { cause })
     this.name = "CatalogSourceError"
     this.kind = kind
+    this.retryAfterMs = retryAfterMs
   }
 }
 
@@ -49,8 +51,16 @@ function extractionFailure(message, cause) {
   return new CatalogSourceError("extraction", message, cause)
 }
 
-function transientFailure(message, cause) {
-  return new CatalogSourceError("transient", message, cause)
+function transientFailure(message, cause, retryAfterMs) {
+  return new CatalogSourceError("transient", message, cause, retryAfterMs)
+}
+
+function parseRetryAfterMs(value, nowMs = Date.now()) {
+  if (!value) return undefined
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
+  const date = Date.parse(value)
+  return Number.isNaN(date) ? undefined : Math.max(0, date - nowMs)
 }
 
 function assertExtraction(condition, message) {
@@ -504,7 +514,13 @@ export function catalogDateWarnings(rows, now = new Date()) {
   return warnings
 }
 
-export async function fetchSource(url, accept, fetchImpl = fetch, retries = 2) {
+export async function fetchSource(
+  url,
+  accept,
+  fetchImpl = fetch,
+  retries = 2,
+  delayImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+) {
   let lastError
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -515,6 +531,13 @@ export async function fetchSource(url, accept, fetchImpl = fetch, retries = 2) {
       })
       if (response.status >= 300 && response.status < 400) {
         throw extractionFailure(`unexpected redirect from ${url}`)
+      }
+      if (response.status === 429) {
+        throw transientFailure(
+          `HTTP 429 from ${url}`,
+          undefined,
+          parseRetryAfterMs(response.headers.get("retry-after")),
+        )
       }
       if (response.status >= 500) throw transientFailure(`HTTP ${response.status} from ${url}`)
       if (!response.ok) throw extractionFailure(`HTTP ${response.status} from ${url}`)
@@ -530,7 +553,12 @@ export async function fetchSource(url, accept, fetchImpl = fetch, retries = 2) {
       if (error instanceof CatalogSourceError && error.kind === "extraction") throw error
       lastError = error
       if (attempt < retries) {
-        await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt))
+        const retryAfterMs =
+          error instanceof CatalogSourceError ? error.retryAfterMs : undefined
+        if (retryAfterMs !== undefined && retryAfterMs > MAX_SOURCE_RETRY_DELAY_MS) {
+          throw error
+        }
+        await delayImpl(retryAfterMs ?? 250 * 2 ** attempt)
       }
     }
   }

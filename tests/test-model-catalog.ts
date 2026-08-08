@@ -123,6 +123,28 @@ describe("model catalog source validation", () => {
       (error: unknown) => error instanceof CatalogSourceError && error.kind === "transient",
     )
     assert.equal(bodyAttempts, 2)
+
+    let rateLimitAttempts = 0
+    const retryDelays: number[] = []
+    const recovered = await fetchSource(
+      "https://example.test/models",
+      "application/json",
+      async () => {
+        rateLimitAttempts += 1
+        return rateLimitAttempts === 1
+          ? new Response(null, { status: 429, headers: { "retry-after": "0.01" } })
+          : new Response('{"object":"list","data":[]}', {
+              headers: { "content-type": "application/json" },
+            })
+      },
+      1,
+      async (ms) => {
+        retryDelays.push(ms)
+      },
+    )
+    assert.equal(recovered, '{"object":"list","data":[]}')
+    assert.equal(rateLimitAttempts, 2)
+    assert.deepEqual(retryDelays, [10])
   })
 })
 
