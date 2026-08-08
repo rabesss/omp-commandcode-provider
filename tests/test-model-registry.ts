@@ -4,7 +4,11 @@ import { describe, it } from "node:test"
 import commandCodeExtension from "../index.ts"
 import modelsJson from "../models.json" with { type: "json" }
 import { VISION_MODEL_IDS } from "../src/model-capabilities.ts"
-import { buildRuntimeCatalog } from "../src/model-registry.ts"
+import {
+  buildRuntimeCatalog,
+  isAvailableOnIndividualGo,
+  reportRuntimeCatalogIssues,
+} from "../src/model-registry.ts"
 
 function docsRowForModelId(modelId: string) {
   const model = modelsJson.models.find((entry) => entry.id === modelId)
@@ -266,7 +270,7 @@ describe("Command Code model registry", () => {
     context.model = { provider: "commandcode" }
     context.modelRegistry.authStorage.has = () => false
     handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
-    assert.deepEqual(removed, [])
+    assert.deepEqual(removed, ["commandcode"])
 
     const pinned: Array<[string, string]> = []
     handlers.get("before_provider_request")?.(
@@ -279,6 +283,7 @@ describe("Command Code model registry", () => {
             getAll: () => ({
               commandcode: [
                 { type: "oauth" },
+                { type: "api_key", key: "older-pasted-key", source: "login" },
                 { type: "api_key", key: "current-pasted-key", source: "login" },
               ],
             }),
@@ -291,6 +296,22 @@ describe("Command Code model registry", () => {
       },
     )
     assert.deepEqual(pinned, [["commandcode", "current-pasted-key"]])
+
+    const clearedAfterDelete: string[] = []
+    handlers.get("before_provider_request")?.(
+      { type: "before_provider_request" },
+      {
+        model: { provider: "commandcode" },
+        modelRegistry: {
+          authStorage: {
+            has: () => false,
+            getAll: () => ({}),
+            removeConfigApiKey: (provider: string) => clearedAfterDelete.push(provider),
+          },
+        },
+      },
+    )
+    assert.deepEqual(clearedAfterDelete, ["commandcode"])
 
     for (const event of ["session_start", "before_provider_request"]) {
       assert.doesNotThrow(() => {
@@ -330,6 +351,11 @@ describe("Command Code model registry", () => {
     for (const modelId of VISION_MODEL_IDS) {
       assert.ok(catalog.has(modelId), `vision override is not in models.json: ${modelId}`)
     }
+    for (const model of modelsJson.models) {
+      const row = docsRowForModelId(model.id)
+      assert.equal(model.reasoning, row?.caps.reasoning, `${model.id} reasoning drift`)
+      assert.equal(VISION_MODEL_IDS.has(model.id), row?.caps.vision, `${model.id} vision drift`)
+    }
   })
 
   it("only advertises zero pricing for the explicitly free model", () => {
@@ -350,6 +376,33 @@ describe("Command Code model registry", () => {
     assert.equal(result.models.length, 51)
     assert.ok(result.issues.includes("missing first-tier pricing for gpt-5.4"))
     assert.equal(result.models.some((model) => model.id === "gpt-5.4"), false)
+
+    const warnings: string[] = []
+    reportRuntimeCatalogIssues(result.issues, (message) => warnings.push(message))
+    assert.deepEqual(warnings, [
+      "[commandcode] skipped catalog entry: missing first-tier pricing for gpt-5.4",
+    ])
+
+    const missingListRate = structuredClone(modelsJson)
+    const terra = missingListRate.source.pricingDocs.rows.find(
+      (entry) => entry.id === "gpt-5.6-terra",
+    )
+    assert.ok(terra)
+    terra.tiers[0].listRates = null
+    const missingListResult = buildRuntimeCatalog(missingListRate)
+    assert.equal(missingListResult.models.some((entry) => entry.id === "gpt-5.6-terra"), false)
+    assert.ok(missingListResult.issues.includes("missing first-tier pricing for gpt-5.6-terra"))
+  })
+
+  it("keeps plan lookup safe when optional catalog structures are corrupt", () => {
+    assert.equal(isAvailableOnIndividualGo(modelsJson, "poolside/laguna-s-2.1-free"), true)
+    assert.equal(
+      isAvailableOnIndividualGo(
+        { models: modelsJson.models } as never,
+        "poolside/laguna-s-2.1-free",
+      ),
+      undefined,
+    )
   })
 
   it("loads and registers synchronously when network access throws", async () => {

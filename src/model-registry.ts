@@ -69,6 +69,13 @@ export interface RuntimeCatalogResult {
   issues: string[]
 }
 
+export function reportRuntimeCatalogIssues(
+  issues: readonly string[],
+  warn: (message: string) => void = console.warn,
+): void {
+  for (const issue of issues) warn(`[commandcode] skipped catalog entry: ${issue}`)
+}
+
 function finiteNonNegative(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0
 }
@@ -83,8 +90,10 @@ function staticRates(row: CatalogDocsRow): {
   // Date-bounded discounts make a committed runtime price silently stale when
   // the date rolls over. Keep their list rate static; permanent/current prices
   // use the documented first tier. The maintenance check still records deals.
-  if (row.deal?.expires && firstTier.listRates) {
-    return { rates: firstTier.listRates, basis: "list-first-tier" }
+  if (row.deal?.expires) {
+    return firstTier.listRates
+      ? { rates: firstTier.listRates, basis: "list-first-tier" }
+      : undefined
   }
   return { rates: firstTier.rates, basis: "effective-first-tier" }
 }
@@ -154,8 +163,8 @@ export function buildRuntimeCatalog(catalog: ModelsJson): RuntimeCatalogResult {
 }
 
 export function isAvailableOnIndividualGo(catalog: ModelsJson, modelId: string): boolean | undefined {
-  const model = catalog.models.find((entry) => entry.id === modelId)
+  const model = catalog.models?.find((entry) => entry.id === modelId)
   if (!model) return undefined
-  const row = catalog.source.pricingDocs.rows.find((entry) => entry.id === model.docsId)
-  return row?.availability["individual-go"]
+  const row = catalog.source?.pricingDocs?.rows?.find((entry) => entry.id === model.docsId)
+  return row?.availability?.["individual-go"]
 }

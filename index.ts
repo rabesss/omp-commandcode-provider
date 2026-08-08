@@ -25,6 +25,7 @@ import { getApiKey, login, refreshToken } from "./src/oauth.ts"
 import {
   buildRuntimeCatalog,
   isAvailableOnIndividualGo,
+  reportRuntimeCatalogIssues,
   type ModelsJson,
 } from "./src/model-registry.ts"
 import { calculateCost, createAssistantMessageEventStream } from "./src/runtime.ts"
@@ -41,7 +42,6 @@ interface CredentialContext {
   model?: { provider: string }
   modelRegistry?: {
     authStorage?: {
-      has(provider: string): boolean
       getAll?(): Record<
         string,
         | { type?: string; key?: string; source?: string }
@@ -55,6 +55,7 @@ interface CredentialContext {
 
 const modelsJson = modelsJsonData as ModelsJson
 const runtimeCatalog = buildRuntimeCatalog(modelsJson)
+reportRuntimeCatalogIssues(runtimeCatalog.issues)
 
 const MODEL_OVERRIDES: Record<string, { contextWindow?: number; maxTokens?: number }> = {
   // OMP represents the usable input context separately from the output budget.
@@ -102,7 +103,7 @@ const streamCommandCode = createStreamCommandCode({
 export default function (pi: ExtensionAPI) {
   const preferCurrentLoginCredential = (ctx: CredentialContext) => {
     const authStorage = ctx.modelRegistry?.authStorage
-    if (ctx.model?.provider !== PROVIDER_ID || !authStorage?.has(PROVIDER_ID)) return
+    if (ctx.model?.provider !== PROVIDER_ID || !authStorage) return
 
     const stored = authStorage.getAll?.()[PROVIDER_ID]
     const credentials = stored === undefined ? [] : Array.isArray(stored) ? stored : [stored]
@@ -114,6 +115,8 @@ export default function (pi: ExtensionAPI) {
           typeof credential.key === "string" &&
           credential.key.length > 0,
       )
+      // OMP 17.2.11 loads SQLite credentials by ascending row id and getAll()
+      // preserves that order, so the newest distinct pasted key is last.
       .at(-1)?.key
 
     if (currentLoginKey && authStorage.setConfigApiKey) {

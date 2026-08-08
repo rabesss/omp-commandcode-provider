@@ -385,6 +385,13 @@ export function validateCommittedCatalog(catalog, now = new Date()) {
     assertExtraction(row !== undefined, `missing docs row ${model.docsId} for ${model.id}`)
     assertExtraction(row.deprecated === false, `model ${model.id} maps to deprecated docs row ${model.docsId}`)
     validateCommittedRate(row.tiers[0].rates, `pricing docs row ${row.id} first-tier rates`)
+    if (row.deal?.expires) {
+      assertExtraction(
+        row.tiers[0].listRates !== null,
+        `pricing docs row ${row.id} has an expiring deal without first-tier listRates`,
+      )
+      validateCommittedRate(row.tiers[0].listRates, `pricing docs row ${row.id} first-tier list rates`)
+    }
   }
 
   const mapped = new Set(catalog.models.map((model) => model.docsId))
@@ -515,7 +522,10 @@ export async function fetchSource(url, accept, fetchImpl = fetch, retries = 2) {
       if (contentType !== accept) {
         throw extractionFailure(`unexpected content-type ${contentType ?? "<missing>"} from ${url}`)
       }
-      return response
+      // Consume the body inside the retry boundary. A timeout or connection
+      // reset after headers is still a transient transport failure, while a
+      // successfully read but malformed payload is classified by its parser.
+      return await response.text()
     } catch (error) {
       if (error instanceof CatalogSourceError && error.kind === "extraction") throw error
       lastError = error
@@ -529,17 +539,16 @@ export async function fetchSource(url, accept, fetchImpl = fetch, retries = 2) {
 }
 
 export async function fetchLiveCatalog(fetchImpl = fetch) {
-  const [providerResponse, docsResponse] = await Promise.all([
+  const [providerText, docsHtml] = await Promise.all([
     fetchSource(PROVIDER_MODELS_URL, "application/json", fetchImpl),
     fetchSource(PRICING_DOCS_URL, "text/html", fetchImpl),
   ])
   let providerPayload
   try {
-    providerPayload = await providerResponse.json()
+    providerPayload = JSON.parse(providerText)
   } catch (error) {
     throw extractionFailure("Provider API response is not valid JSON", error)
   }
-  const docsHtml = await docsResponse.text()
   return {
     providerModels: validateProviderPayload(providerPayload),
     docsRows: extractPricingRowsFromHtml(docsHtml),

@@ -8,12 +8,14 @@ import {
   catalogDateWarnings,
   CatalogSourceError,
   compareCatalog,
+  EXIT_CODES,
   extractPricingRowsFromHtml,
   fetchSource,
   normalizeDocsRows,
   validateCommittedCatalog,
   validateProviderPayload,
 } from "../scripts/model-catalog-lib.mjs"
+import { runModelCatalogCli } from "../scripts/sync-upstream-models.mjs"
 
 const fixtures = new URL("./fixtures/", import.meta.url)
 const pricingHtml = await readFile(new URL("pricing-limits-fragment.html", fixtures), "utf8")
@@ -99,6 +101,28 @@ describe("model catalog source validation", () => {
       ),
       (error: unknown) => error instanceof CatalogSourceError && error.kind === "extraction",
     )
+
+    let bodyAttempts = 0
+    await assert.rejects(
+      fetchSource(
+        "https://example.test/models",
+        "application/json",
+        async () => {
+          bodyAttempts += 1
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new TypeError("socket reset during body read"))
+              },
+            }),
+            { headers: { "content-type": "application/json" } },
+          )
+        },
+        1,
+      ),
+      (error: unknown) => error instanceof CatalogSourceError && error.kind === "transient",
+    )
+    assert.equal(bodyAttempts, 2)
   })
 })
 
@@ -160,5 +184,60 @@ describe("committed model catalog", () => {
       () => validateCommittedCatalog(noLongerConflicting, new Date("2026-08-08T12:00:00Z")),
       /does not describe a real value conflict/,
     )
+  })
+
+  it("rejects an active expiring deal without a static list rate", () => {
+    const missingListRate = structuredClone(modelsJson)
+    const terra = missingListRate.source.pricingDocs.rows.find(
+      (row) => row.id === "gpt-5.6-terra",
+    )
+    assert.ok(terra)
+    terra.tiers[0].listRates = null
+    assert.throws(
+      () => validateCommittedCatalog(missingListRate, new Date("2026-08-08T12:00:00Z")),
+      /expiring deal without first-tier listRates/,
+    )
+  })
+
+  it("maps clean, drift, transient, extraction, proposal, and usage CLI outcomes", async () => {
+    const providerModels = validateProviderPayload(providerPayload)
+    const docsRows = extractPricingRowsFromHtml(pricingHtml)
+    const output: string[] = []
+    const baseDeps = {
+      readFileImpl: async () => JSON.stringify(modelsJson),
+      fetchLiveCatalogImpl: async () => ({ providerModels, docsRows }),
+      log: (message: string) => output.push(message),
+      warn: (message: string) => output.push(message),
+      error: (message: string) => output.push(message),
+    }
+
+    assert.equal(await runModelCatalogCli([], baseDeps), EXIT_CODES.CLEAN)
+    assert.equal(await runModelCatalogCli(["--proposal"], baseDeps), EXIT_CODES.CLEAN)
+    assert.match(output.at(-1) ?? "", /"writesPerformed": false/)
+    assert.equal(await runModelCatalogCli(["--unknown"], baseDeps), EXIT_CODES.USAGE)
+
+    const added = { ...providerModels.at(-1)!, id: "example/new-model", name: "New Model" }
+    assert.equal(
+      await runModelCatalogCli([], {
+        ...baseDeps,
+        fetchLiveCatalogImpl: async () => ({ providerModels: [...providerModels, added], docsRows }),
+      }),
+      EXIT_CODES.DRIFT,
+    )
+
+    for (const [kind, expected] of [
+      ["transient", EXIT_CODES.TRANSIENT_FAILURE],
+      ["extraction", EXIT_CODES.EXTRACTION_FAILURE],
+    ] as const) {
+      assert.equal(
+        await runModelCatalogCli([], {
+          ...baseDeps,
+          fetchLiveCatalogImpl: async () => {
+            throw new CatalogSourceError(kind, `${kind} fixture`)
+          },
+        }),
+        expected,
+      )
+    }
   })
 })

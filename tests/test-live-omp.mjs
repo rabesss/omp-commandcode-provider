@@ -52,9 +52,11 @@ const result = spawnSync(
   { cwd: projectDir, encoding: "utf8", timeout: 60_000 },
 )
 
+const rawOutput = `${result.stdout}\n${result.stderr}`
+const leakedCredential = /Bearer\s+(?!\[REDACTED\])|\buser_(?!\[REDACTED\])/.test(rawOutput)
+assert.equal(leakedCredential, false, "live OMP output contained credential-shaped data")
 const stdout = redactSensitiveText(result.stdout)
 const stderr = redactSensitiveText(result.stderr)
 assert.equal(result.status, 0, stderr)
 assert.match(stdout, /commandcode-live-ok/)
-assert.doesNotMatch(`${stdout}\n${stderr}`, /Bearer\s+(?!\[REDACTED\])|\buser_(?!\[REDACTED\])/)
 console.log("[omp-live] PASS")

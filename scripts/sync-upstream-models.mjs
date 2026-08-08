@@ -16,50 +16,70 @@ import {
 
 const projectDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const modelsPath = resolve(projectDir, "models.json")
-const args = process.argv.slice(2)
 
-if (args.some((arg) => !["--proposal"].includes(arg)) || args.length > 1) {
-  console.error("Usage: node scripts/sync-upstream-models.mjs [--proposal]")
-  process.exit(EXIT_CODES.USAGE)
+export async function runModelCatalogCli(
+  args = process.argv.slice(2),
+  {
+    readFileImpl = readFile,
+    fetchLiveCatalogImpl = fetchLiveCatalog,
+    log = console.log,
+    warn = console.warn,
+    error = console.error,
+  } = {},
+) {
+  if (args.some((arg) => !["--proposal"].includes(arg)) || args.length > 1) {
+    error("Usage: node scripts/sync-upstream-models.mjs [--proposal]")
+    return EXIT_CODES.USAGE
+  }
+
+  try {
+    const committed = validateCommittedCatalog(JSON.parse(await readFileImpl(modelsPath, "utf8")))
+    const { providerModels, docsRows } = await fetchLiveCatalogImpl()
+
+    if (args.includes("--proposal")) {
+      log(JSON.stringify(buildProposal(committed, providerModels, docsRows), null, 2))
+      return EXIT_CODES.CLEAN
+    }
+
+    const diffs = compareCatalog(committed, providerModels, docsRows)
+    if (diffs.length > 0) {
+      error(`[models] drift detected in ${diffs.length} catalog path(s)`)
+      for (const diff of diffs) error(`[models] ${diff.path}`)
+      error("[models] run `npm run models:proposal` for a deterministic read-only report")
+      return EXIT_CODES.DRIFT
+    }
+
+    for (const warning of catalogDateWarnings(docsRows)) {
+      warn(`[models] warning: ${warning}`)
+    }
+
+    const goCount = docsRows.filter(
+      (row) => !row.deprecated && row.availability["individual-go"],
+    ).length
+    const mappedDocs = new Set(committed.models.map((model) => model.docsId))
+    const docsOnlyCount = docsRows.filter(
+      (row) => !row.deprecated && !mappedDocs.has(row.id),
+    ).length
+    const deprecatedCount = docsRows.filter((row) => row.deprecated).length
+    log(
+      `[models] synchronized: ${providerModels.length} live, ${goCount} Individual Go, ${docsOnlyCount} docs-only, ${deprecatedCount} deprecated`,
+    )
+    return EXIT_CODES.CLEAN
+  } catch (caught) {
+    if (caught instanceof CatalogSourceError) {
+      error(`[models] ${caught.kind} failure: ${caught.message}`)
+      return caught.kind === "transient"
+        ? EXIT_CODES.TRANSIENT_FAILURE
+        : EXIT_CODES.EXTRACTION_FAILURE
+    }
+    error(
+      `[models] unexpected failure: ${caught instanceof Error ? caught.message : String(caught)}`,
+    )
+    return EXIT_CODES.EXTRACTION_FAILURE
+  }
 }
 
-try {
-  const committed = validateCommittedCatalog(JSON.parse(await readFile(modelsPath, "utf8")))
-  const { providerModels, docsRows } = await fetchLiveCatalog()
-
-  if (args.includes("--proposal")) {
-    console.log(JSON.stringify(buildProposal(committed, providerModels, docsRows), null, 2))
-    process.exit(EXIT_CODES.CLEAN)
-  }
-
-  const diffs = compareCatalog(committed, providerModels, docsRows)
-  if (diffs.length > 0) {
-    console.error(`[models] drift detected in ${diffs.length} catalog path(s)`)
-    for (const diff of diffs) console.error(`[models] ${diff.path}`)
-    console.error("[models] run `npm run models:proposal` for a deterministic read-only report")
-    process.exit(EXIT_CODES.DRIFT)
-  }
-
-  for (const warning of catalogDateWarnings(docsRows)) {
-    console.warn(`[models] warning: ${warning}`)
-  }
-
-  const goCount = docsRows.filter(
-    (row) => !row.deprecated && row.availability["individual-go"],
-  ).length
-  const mappedDocs = new Set(committed.models.map((model) => model.docsId))
-  const docsOnlyCount = docsRows.filter((row) => !row.deprecated && !mappedDocs.has(row.id)).length
-  const deprecatedCount = docsRows.filter((row) => row.deprecated).length
-  console.log(
-    `[models] synchronized: ${providerModels.length} live, ${goCount} Individual Go, ${docsOnlyCount} docs-only, ${deprecatedCount} deprecated`,
-  )
-} catch (error) {
-  if (error instanceof CatalogSourceError) {
-    console.error(`[models] ${error.kind} failure: ${error.message}`)
-    process.exit(
-      error.kind === "transient" ? EXIT_CODES.TRANSIENT_FAILURE : EXIT_CODES.EXTRACTION_FAILURE,
-    )
-  }
-  console.error(`[models] unexpected failure: ${error instanceof Error ? error.message : String(error)}`)
-  process.exit(EXIT_CODES.EXTRACTION_FAILURE)
+const invokedPath = process.argv[1] === undefined ? undefined : resolve(process.argv[1])
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  process.exitCode = await runModelCatalogCli()
 }
