@@ -19,8 +19,22 @@ import {
   toJsonSchema,
   toolsToJson,
 } from "../src/core.ts"
+import { redactSensitiveText } from "../src/redaction.ts"
 
 import { objectAt } from "./helpers.ts"
+
+describe("redactSensitiveText()", () => {
+  it("scrubs exact secrets, bearer values, and Command Code key-shaped values", () => {
+    const secret = "user_exampleSecret123"
+    const redacted = redactSensitiveText(
+      `exact=${secret} Authorization: Bearer another-secret fallback=user_otherSecret`,
+      [secret],
+    )
+    assert.doesNotMatch(redacted, /exampleSecret|another-secret|otherSecret/)
+    assert.match(redacted, /Bearer \[REDACTED\]/)
+    assert.match(redacted, /user_\[REDACTED\]/)
+  })
+})
 
 describe("getApiKey()", () => {
   it("prefers canonical COMMAND_CODE_API_KEY over the legacy alias", () => {

@@ -21,6 +21,7 @@ import {
   toolsToJson,
 } from "./converters.ts"
 import { modelSupportsVision } from "./model-capabilities.ts"
+import { redactSensitiveText } from "./redaction.ts"
 import type {
   AssistantMessageEventStreamLike,
   AssistantMessageLike,
@@ -42,7 +43,7 @@ export * from "./model-capabilities.ts"
 export * from "./types.ts"
 
 export const DEFAULT_API_BASE = "https://api.commandcode.ai"
-export const COMMAND_CODE_CLI_VERSION = "1.14.1"
+export const COMMAND_CODE_CLI_VERSION = "1.15.0"
 const COMMAND_CODE_MAX_OUTPUT_TOKENS = 200_000
 const DEFAULT_MAX_RETRIES = 0
 const DEFAULT_MAX_RETRY_DELAY_MS = 60_000
@@ -71,9 +72,14 @@ class CommandCodeStreamError extends Error {
 }
 
 function redactErrorMessage(message: string, apiKey: string): string {
-  let redacted = message
-  if (apiKey) redacted = redacted.split(apiKey).join("[REDACTED]")
-  return redacted.replace(/Bearer\s+[^\s"']+/gi, "Bearer [REDACTED]")
+  return redactSensitiveText(message, [apiKey])
+}
+
+function isPlanEntitlementError(status: number, body: string): boolean {
+  if (![400, 402, 403, 404, 429].includes(status)) return false
+  return /(?:not (?:available|included|enabled)|unsupported).{0,80}(?:plan|subscription)|(?:plan|subscription|entitlement).{0,80}(?:model|access)/i.test(
+    body,
+  )
 }
 
 function parseRetryAfterSeconds(value: string | null, nowMs = Date.now()): number | undefined {
@@ -761,9 +767,14 @@ export function createStreamCommandCode(deps: CoreDependencies) {
                 }
                 throw errorBodyReadError
               }
+              const availabilityHint =
+                deps.isAvailableOnIndividualGo?.(model.id) === false &&
+                isPlanEntitlementError(response.status, errBody)
+                  ? ` Model ${model.id} is not currently listed for Individual Go; choose a Go-available model or check Command Code plan access.`
+                  : ""
               throw new Error(
                 redactErrorMessage(
-                  `Command Code API error ${response.status}: ${errBody.slice(0, 500)}`,
+                  `Command Code API error ${response.status}: ${errBody.slice(0, 500)}${availabilityHint}`,
                   apiKey,
                 ),
               )
@@ -901,7 +912,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
             ? "Request aborted"
             : error instanceof Error
               ? redactErrorMessage(error.message, apiKey)
-              : String(error)
+              : redactErrorMessage(String(error), apiKey)
         stream.push({ type: "error", reason, error: output })
         stream.end()
       } finally {
@@ -928,7 +939,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
         model: model.id,
         usage: defaultUsage(),
         stopReason: "error",
-        errorMessage: error instanceof Error ? error.message : String(error),
+        errorMessage: redactSensitiveText(error instanceof Error ? error.message : String(error)),
         timestamp: now(),
       }
       stream.push({ type: "error", reason: "error", error: msg })

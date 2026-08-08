@@ -4,14 +4,14 @@ import { describe, it } from "node:test"
 import commandCodeExtension from "../index.ts"
 import modelsJson from "../models.json" with { type: "json" }
 import { VISION_MODEL_IDS } from "../src/model-capabilities.ts"
+import { buildRuntimeCatalog } from "../src/model-registry.ts"
 
-function pricingForModelId(modelId: string) {
-  return modelsJson.pricing.find((entry) => {
-    const colonIdx = entry.id.indexOf(":")
-    const pricingModelId = colonIdx > 0 ? entry.id.slice(colonIdx + 1) : entry.id
-    return pricingModelId === modelId || entry.id === modelId
-  })
+function docsRowForModelId(modelId: string) {
+  const model = modelsJson.models.find((entry) => entry.id === modelId)
+  return modelsJson.source.pricingDocs.rows.find((entry) => entry.id === model?.docsId)
 }
+
+const runtimeCatalog = buildRuntimeCatalog(modelsJson)
 
 const expectedModels = [
   "claude-sonnet-5",
@@ -86,6 +86,8 @@ describe("Command Code model registry", () => {
             input: readonly string[]
             contextWindow: number
             maxTokens: number
+            reasoning: boolean
+            cost: { input: number; output: number; cacheRead: number; cacheWrite: number }
             thinking?: { mode: string; efforts: readonly string[] }
           }>
         }
@@ -102,6 +104,8 @@ describe("Command Code model registry", () => {
             input: readonly string[]
             contextWindow: number
             maxTokens: number
+            reasoning: boolean
+            cost: { input: number; output: number; cacheRead: number; cacheWrite: number }
             thinking?: { mode: string; efforts: readonly string[] }
           }>
         }
@@ -169,9 +173,46 @@ describe("Command Code model registry", () => {
       providerConfig?.models?.find((model) => model.id === "moonshotai/Kimi-K3")?.thinking,
       undefined,
     )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "MiniMaxAI/MiniMax-M3")?.reasoning,
+      true,
+    )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "xiaomi/mimo-v2.5-pro")?.reasoning,
+      false,
+    )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "xiaomi/mimo-v2.5")?.reasoning,
+      false,
+    )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "claude-sonnet-4-6")?.reasoning,
+      false,
+    )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "claude-sonnet-4-6")?.cost.cacheWrite,
+      3.75,
+    )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "claude-opus-4-7")?.cost.cacheWrite,
+      6.25,
+    )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "claude-haiku-4-5-20251001")?.cost
+        .cacheWrite,
+      1.25,
+    )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "gpt-5.6-terra")?.cost.input,
+      2,
+    )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "deepseek/deepseek-v4-pro")?.cost.input,
+      0.435,
+    )
   })
 
-  it("prefers stored login credentials over the environment fallback", () => {
+  it("prefers the current pasted login key over legacy OAuth and environment fallbacks", () => {
     const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>()
 
     commandCodeExtension({
@@ -227,6 +268,30 @@ describe("Command Code model registry", () => {
     handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
     assert.deepEqual(removed, [])
 
+    const pinned: Array<[string, string]> = []
+    handlers.get("before_provider_request")?.(
+      { type: "before_provider_request" },
+      {
+        model: { provider: "commandcode" },
+        modelRegistry: {
+          authStorage: {
+            has: () => true,
+            getAll: () => ({
+              commandcode: [
+                { type: "oauth" },
+                { type: "api_key", key: "current-pasted-key", source: "login" },
+              ],
+            }),
+            setConfigApiKey: (provider: string, key: string) => pinned.push([provider, key]),
+            removeConfigApiKey: () => {
+              throw new Error("should keep the current pasted key pinned")
+            },
+          },
+        },
+      },
+    )
+    assert.deepEqual(pinned, [["commandcode", "current-pasted-key"]])
+
     for (const event of ["session_start", "before_provider_request"]) {
       assert.doesNotThrow(() => {
         handlers.get(event)?.(
@@ -243,13 +308,21 @@ describe("Command Code model registry", () => {
     }
   })
 
-  it("resolves a pricing row for every committed model id", () => {
+  it("maps every committed model to exactly one active docs row", () => {
+    assert.deepEqual(runtimeCatalog.issues, [])
+    assert.equal(runtimeCatalog.models.length, expectedModels.length)
     for (const model of modelsJson.models) {
-      assert.ok(
-        pricingForModelId(model.id),
-        `missing pricing row for model id ${model.id}`,
-      )
+      const row = docsRowForModelId(model.id)
+      assert.ok(row, `missing docs row for model id ${model.id}`)
+      assert.equal(row?.deprecated, false)
     }
+
+    assert.equal(new Set(modelsJson.models.map((model) => model.docsId)).size, 52)
+    assert.deepEqual(modelsJson.source.pricingDocs.docsOnlyActive, ["claude-opus-4-6"])
+    assert.deepEqual(modelsJson.source.pricingDocs.deprecated, [
+      "ling-3.0-flash-free",
+      "claude-sonnet-4-5",
+    ])
   })
 
   it("keeps capability sets within the committed catalog", () => {
@@ -260,13 +333,42 @@ describe("Command Code model registry", () => {
   })
 
   it("only advertises zero pricing for the explicitly free model", () => {
-    const zeroPriced = modelsJson.models
-      .filter((model) => {
-        const pricing = pricingForModelId(model.id)
-        return pricing?.promptCost === 0 && pricing.completionCost === 0
-      })
+    const zeroPriced = runtimeCatalog.models
+      .filter((model) => model.cost.input === 0 && model.cost.output === 0)
       .map((model) => model.id)
 
     assert.deepEqual(zeroPriced, ["poolside/laguna-s-2.1-free"])
+  })
+
+  it("skips only a corruptly-priced model instead of claiming it is free", () => {
+    const corrupt = structuredClone(modelsJson)
+    const row = corrupt.source.pricingDocs.rows.find((entry) => entry.id === "gpt-5.4")
+    assert.ok(row)
+    row.tiers = []
+
+    const result = buildRuntimeCatalog(corrupt)
+    assert.equal(result.models.length, 51)
+    assert.ok(result.issues.includes("missing first-tier pricing for gpt-5.4"))
+    assert.equal(result.models.some((model) => model.id === "gpt-5.4"), false)
+  })
+
+  it("loads and registers synchronously when network access throws", async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (() => {
+      throw new Error("network access is forbidden during registration")
+    }) as typeof fetch
+    try {
+      const imported = await import(`../index.ts?offline=${Date.now()}`)
+      let registered = 0
+      imported.default({
+        on() {},
+        registerProvider(_name: string, config: { models?: unknown[] }) {
+          registered = config.models?.length ?? 0
+        },
+      })
+      assert.equal(registered, 52)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 })
