@@ -10,6 +10,7 @@ import { accessSync, constants, mkdtempSync, rmSync } from "node:fs"
 import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import { delimiter, dirname, join, resolve } from "node:path"
+import { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -261,6 +262,27 @@ try {
   assert.equal(rpc.sawAssistantMessage, true)
   assert.equal(rpc.sawTextDelta, true)
   assert.equal(requestCount, 1)
+
+  console.log("[omp-local] stored login credential takes precedence over stale env")
+  const authDb = new DatabaseSync(join(TEST_AGENT_DIR, "agent.db"))
+  authDb
+    .prepare("INSERT INTO auth_credentials (provider, credential_type, data) VALUES (?, ?, ?)")
+    .run(
+      "commandcode",
+      "api_key",
+      JSON.stringify({ key: "stored-mock-key", source: "login" }),
+    )
+  authDb.close()
+
+  requestCount = 0
+  const storedLogin = await runOmp(
+    ["--extension", EXT_PATH, "-p", "say mock token", "--model", TEST_MODEL_SELECTOR],
+    30_000,
+  )
+  assert.equal(storedLogin.code, 0, storedLogin.stderr)
+  assert.match(storedLogin.stdout, /mock-omp-ok/)
+  assert.equal(requestCount, 1)
+  assert.equal(lastRequestHeaders.authorization, "Bearer stored-mock-key")
 
   console.log("[omp-local] PASS")
 } finally {

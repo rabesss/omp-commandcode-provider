@@ -371,12 +371,13 @@ describe("streamCommandCode — request serialization", () => {
       streamCommandCode(makeModel({ maxTokens: 500_000 }), makeContext(), {
         apiKey: "mock-key",
         maxTokens: 500_000,
-        headers: { "x-custom": "value" },
+        headers: { "x-custom": "value", "user-agent": "custom-client" },
       }),
     )
 
     assert.equal(objectAt(server.lastRequestBody(), ["params", "max_tokens"]), 200_000)
     assert.equal(server.lastRequestHeaders()["x-custom"], "value")
+    assert.equal(server.lastRequestHeaders()["user-agent"], "cli")
   })
 
   it("forwards current OMP temperature, reasoning effort, and stable session id", async () => {

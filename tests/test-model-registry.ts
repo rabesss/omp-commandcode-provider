@@ -181,6 +181,9 @@ describe("Command Code model registry", () => {
       registerProvider() {},
     })
 
+    assert.ok(handlers.has("session_start"))
+    assert.ok(handlers.has("before_provider_request"))
+
     const removed: string[] = []
     const context = {
       model: { provider: "commandcode" },
@@ -195,9 +198,23 @@ describe("Command Code model registry", () => {
     handlers.get("session_start")?.({ type: "session_start" }, context)
     assert.deepEqual(removed, ["commandcode"])
 
-    context.modelRegistry.authStorage.has = () => false
+    removed.length = 0
     handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
     assert.deepEqual(removed, ["commandcode"])
+
+    removed.length = 0
+    context.model = { provider: "other" }
+    handlers.get("session_start")?.({ type: "session_start" }, context)
+    assert.deepEqual(removed, [])
+
+    context.model = undefined
+    handlers.get("session_start")?.({ type: "session_start" }, context)
+    assert.deepEqual(removed, [])
+
+    context.model = { provider: "commandcode" }
+    context.modelRegistry.authStorage.has = () => false
+    handlers.get("before_provider_request")?.({ type: "before_provider_request" }, context)
+    assert.deepEqual(removed, [])
   })
 
   it("resolves a pricing row for every committed model id", () => {
