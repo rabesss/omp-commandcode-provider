@@ -17,9 +17,11 @@ import { randomBytes } from "node:crypto"
 import { startAuthServer } from "./auth-server.ts"
 
 const STUDIO_BASE_URL = "https://commandcode.ai"
-const CALLBACK_HOST = "127.0.0.1"
+const CALLBACK_URL_HOST = "localhost"
 const TEN_YEARS_MS = 10 * 365 * 24 * 60 * 60 * 1000 // API keys don't expire
-const DEFAULT_AUTH_TIMEOUT_MS = 15_000
+// Matches Command Code CLI 1.32.1. Browser approval and Local Network Access
+// prompts routinely need longer than the old 15-second extension timeout.
+const DEFAULT_AUTH_TIMEOUT_MS = 120_000
 
 export interface OAuthLoginCallbacks {
   onAuth(params: { url: string }): void
@@ -119,7 +121,10 @@ export async function login(callbacks: OAuthLoginCallbacks): Promise<string> {
     )
   }
 
-  const callbackUrl = `http://${CALLBACK_HOST}:${authServer.port}/callback`
+  // Command Code's current browser flow advertises localhost while the server
+  // remains bound to 127.0.0.1. Keep that exact public callback shape so the
+  // Studio flow and Chrome's Local Network Access handling match the CLI.
+  const callbackUrl = `http://${CALLBACK_URL_HOST}:${authServer.port}/callback`
   const authUrl = `${STUDIO_BASE_URL}/studio/auth/cli?callback=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(stateToken)}`
 
   // Tell OMP to open the browser.

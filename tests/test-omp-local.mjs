@@ -285,7 +285,7 @@ try {
   assert.equal(lastRequestHeaders.authorization, "Bearer stale-env-key")
 
   console.log("[omp-local] stored login credential takes precedence over stale env")
-  // OMP v17.2.11 auth schema: packages/ai/src/auth/sqlite-credential-store.ts.
+  // OMP v17.4.2 auth schema: packages/ai/src/auth/sqlite-credential-store.ts.
   const authDb = new DatabaseSync(join(TEST_AGENT_DIR, "agent.db"))
   authDb
     .prepare("INSERT INTO auth_credentials (provider, credential_type, data) VALUES (?, ?, ?)")

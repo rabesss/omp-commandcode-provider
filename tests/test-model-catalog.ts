@@ -26,24 +26,28 @@ const providerPayload = JSON.parse(
 describe("model catalog source validation", () => {
   it("extracts the reviewed pricing snapshot and its boundary sets", () => {
     const rows = extractPricingRowsFromHtml(pricingHtml)
-    assert.equal(rows.length, 55)
-    assert.equal(rows.filter((row) => !row.deprecated).length, 53)
+    assert.equal(rows.length, 61)
+    assert.equal(rows.filter((row) => !row.deprecated).length, 59)
     assert.equal(
       rows.filter((row) => !row.deprecated && row.availability["individual-go"]).length,
-      32,
+      36,
     )
     assert.deepEqual(
       rows.filter((row) => row.deprecated).map((row) => row.id),
       ["ling-3.0-flash-free", "claude-sonnet-4-5"],
     )
-    assert.equal(rows.filter((row) => !row.deprecated && row.tiers.length > 1).length, 6)
-    assert.equal(rows.filter((row) => !row.deprecated && row.deal).length, 8)
+    assert.equal(rows.filter((row) => !row.deprecated && row.tiers.length > 1).length, 8)
+    assert.equal(rows.filter((row) => !row.deprecated && row.deal).length, 7)
+    assert.deepEqual(
+      rows.filter((row) => row.timeOfDay).map((row) => row.id),
+      ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"],
+    )
   })
 
-  it("validates the exact Provider API schema and 52 unique models", () => {
+  it("validates the exact Provider API schema and 58 unique models", () => {
     const rows = validateProviderPayload(providerPayload)
-    assert.equal(rows.length, 52)
-    assert.equal(new Set(rows.map((row) => row.id)).size, 52)
+    assert.equal(rows.length, 58)
+    assert.equal(new Set(rows.map((row) => row.id)).size, 58)
   })
 
   it("fails closed on empty, truncated, and interstitial docs responses", () => {
@@ -71,6 +75,18 @@ describe("model catalog source validation", () => {
     const unknownField = structuredClone(rows)
     ;(unknownField[0] as Record<string, unknown>).surprise = true
     assert.throws(() => normalizeDocsRows(unknownField), /unknown field surprise/)
+
+    const invalidTimeOfDay = structuredClone(rows)
+    const dynamic = invalidTimeOfDay.find((row) => row.timeOfDay)
+    assert.ok(dynamic?.timeOfDay)
+    dynamic.timeOfDay.peakHoursPerDay = 8
+    assert.throws(() => normalizeDocsRows(invalidTimeOfDay), /hours must total 24/)
+
+    const invalidDynamicDate = structuredClone(rows)
+    const invalidDynamic = invalidDynamicDate.find((row) => row.timeOfDay)
+    assert.ok(invalidDynamic?.timeOfDay)
+    invalidDynamic.timeOfDay.effective = "2026-02-30T00:00:00Z"
+    assert.throws(() => normalizeDocsRows(invalidDynamicDate), /valid ISO UTC timestamp/)
   })
 
   it("distinguishes transient fetch failures from extraction failures", async () => {
@@ -193,7 +209,7 @@ describe("model catalog source validation", () => {
 
 describe("committed model catalog", () => {
   it("is canonical and matches both reviewed source fixtures", () => {
-    validateCommittedCatalog(modelsJson, new Date("2026-08-08T12:00:00Z"))
+    validateCommittedCatalog(modelsJson, new Date("2026-08-22T12:00:00Z"))
     const diffs = compareCatalog(
       modelsJson,
       validateProviderPayload(providerPayload),
@@ -230,7 +246,7 @@ describe("committed model catalog", () => {
 
   it("reports date-bound source metadata without changing catalog values", () => {
     const rows = extractPricingRowsFromHtml(pricingHtml)
-    const warnings = catalogDateWarnings(rows, new Date("2026-08-08T12:00:00Z"))
+    const warnings = catalogDateWarnings(rows, new Date("2026-08-22T12:00:00Z"))
     assert.ok(warnings.some((warning) => warning.startsWith("qwen-3.7-max:")))
     assert.ok(!warnings.some((warning) => warning.startsWith("gpt-5.6-terra:")))
   })
@@ -239,27 +255,27 @@ describe("committed model catalog", () => {
     const stale = structuredClone(modelsJson)
     stale.sourceConflicts[0].verifiedAt = "2025-01-01"
     assert.throws(
-      () => validateCommittedCatalog(stale, new Date("2026-08-08T12:00:00Z")),
+      () => validateCommittedCatalog(stale, new Date("2026-08-22T12:00:00Z")),
       /older than 180 days/,
     )
 
     const noLongerConflicting = structuredClone(modelsJson)
     noLongerConflicting.sourceConflicts[0].conflicting.value = false
     assert.throws(
-      () => validateCommittedCatalog(noLongerConflicting, new Date("2026-08-08T12:00:00Z")),
+      () => validateCommittedCatalog(noLongerConflicting, new Date("2026-08-22T12:00:00Z")),
       /does not describe a real value conflict/,
     )
   })
 
   it("rejects an active expiring deal without a static list rate", () => {
     const missingListRate = structuredClone(modelsJson)
-    const terra = missingListRate.source.pricingDocs.rows.find(
-      (row) => row.id === "gpt-5.6-terra",
+    const gemini37 = missingListRate.source.pricingDocs.rows.find(
+      (row) => row.id === "gemini-3.7-flash",
     )
-    assert.ok(terra)
-    terra.tiers[0].listRates = null
+    assert.ok(gemini37)
+    gemini37.tiers[0].listRates = null
     assert.throws(
-      () => validateCommittedCatalog(missingListRate, new Date("2026-08-08T12:00:00Z")),
+      () => validateCommittedCatalog(missingListRate, new Date("2026-08-22T12:00:00Z")),
       /expiring deal without first-tier listRates/,
     )
   })

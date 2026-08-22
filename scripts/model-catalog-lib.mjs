@@ -22,6 +22,7 @@ const DOC_ROW_KEYS = new Set([
   "note",
   "priceChangeNote",
   "tiers",
+  "timeOfDay",
   "tip",
 ])
 const RATE_KEYS = ["input", "output", "cacheRead", "cacheWrite"]
@@ -148,6 +149,47 @@ function normalizeDeal(value, label) {
   }
 }
 
+function normalizeTimeOfDay(value, label) {
+  if (value === undefined) return undefined
+  assertExtraction(isPlainObject(value), `${label} must be an object`)
+  const expected = [
+    "effective",
+    "offPeak",
+    "offPeakHoursPerDay",
+    "peak",
+    "peakHoursPerDay",
+    "tip",
+    "windows",
+  ]
+  assertExtraction(ownKeysEqual(value, expected), `${label} does not match the expected schema`)
+  const effective = requiredString(value.effective, `${label}.effective`)
+  const instantMatch = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{3}))?Z$/.exec(effective)
+  const parsedInstant = Date.parse(effective)
+  assertExtraction(
+    instantMatch !== null &&
+      !Number.isNaN(parsedInstant) &&
+      new Date(parsedInstant).toISOString() ===
+        `${instantMatch[1]}.${instantMatch[2] ?? "000"}Z`,
+    `${label}.effective must be a valid ISO UTC timestamp`,
+  )
+  for (const key of ["peakHoursPerDay", "offPeakHoursPerDay"]) {
+    assertExtraction(finiteNonNegative(value[key]), `${label}.${key} must be non-negative`)
+  }
+  assertExtraction(
+    value.peakHoursPerDay + value.offPeakHoursPerDay === 24,
+    `${label} hours must total 24`,
+  )
+  return {
+    effective,
+    peak: normalizeRates(value.peak, `${label}.peak`),
+    offPeak: normalizeRates(value.offPeak, `${label}.offPeak`),
+    peakHoursPerDay: value.peakHoursPerDay,
+    offPeakHoursPerDay: value.offPeakHoursPerDay,
+    windows: requiredString(value.windows, `${label}.windows`),
+    tip: requiredString(value.tip, `${label}.tip`),
+  }
+}
+
 function resolveFlightReference(value, records, seen = new Set()) {
   if (typeof value !== "string" || !/^\$[0-9A-Za-z]+:/.test(value)) return value
   assertExtraction(!seen.has(value), `cyclic React Flight reference ${value}`)
@@ -252,6 +294,7 @@ export function normalizeDocsRows(rows) {
         text: requiredString(row.priceChangeNote.text, `${label}.priceChangeNote.text`),
       }
     }
+    const timeOfDay = normalizeTimeOfDay(row.timeOfDay, `${label}.timeOfDay`)
     return {
       id,
       name: requiredString(row.name, `${label}.name`),
@@ -269,6 +312,7 @@ export function normalizeDocsRows(rows) {
       ...(row.note === undefined ? {} : { note: requiredString(row.note, `${label}.note`) }),
       ...(row.tip === undefined ? {} : { tip: requiredString(row.tip, `${label}.tip`) }),
       ...(priceChangeNote === undefined ? {} : { priceChangeNote }),
+      ...(timeOfDay === undefined ? {} : { timeOfDay }),
     }
   })
 }

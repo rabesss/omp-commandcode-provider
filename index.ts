@@ -34,6 +34,14 @@ const API_BASE = process.env.COMMANDCODE_API_BASE ?? DEFAULT_API_BASE
 const PROVIDER_ID = "commandcode"
 const modelsJsonData = JSON.parse(readFileSync(new URL("./models.json", import.meta.url), "utf8"))
 
+function configuredEnvironmentApiKey(): string | undefined {
+  for (const name of ["COMMAND_CODE_API_KEY", "COMMANDCODE_API_KEY"]) {
+    const value = process.env[name]?.trim()
+    if (value) return value
+  }
+  return undefined
+}
+
 // ---------------------------------------------------------------------------
 // Load model definitions from models.json
 // ---------------------------------------------------------------------------
@@ -101,6 +109,7 @@ const streamCommandCode = createStreamCommandCode({
 // ---------------------------------------------------------------------------
 
 export default function (pi: ExtensionAPI) {
+  const environmentApiKey = configuredEnvironmentApiKey()
   const preferCurrentLoginCredential = (ctx: CredentialContext) => {
     const authStorage = ctx.modelRegistry?.authStorage
     if (ctx.model?.provider !== PROVIDER_ID || !authStorage) return
@@ -115,7 +124,7 @@ export default function (pi: ExtensionAPI) {
           typeof credential.key === "string" &&
           credential.key.length > 0,
       )
-      // OMP 17.2.11 loads SQLite credentials by ascending row id and getAll()
+      // OMP 17.4.2 loads SQLite credentials by ascending row id and getAll()
       // preserves that order, so the newest distinct pasted key is last.
       .at(-1)?.key
 
@@ -124,7 +133,7 @@ export default function (pi: ExtensionAPI) {
       // keeps a freshly pasted one-time API key active without mutating the DB.
       authStorage.setConfigApiKey(PROVIDER_ID, currentLoginKey)
     } else {
-      // OMP 17.2.11 implements this as an idempotent Map.delete on the
+      // OMP 17.4.2 implements this as an idempotent Map.delete on the
       // in-memory config override; it never edits ~/.omp/agent/.env or the DB.
       authStorage.removeConfigApiKey(PROVIDER_ID)
     }
@@ -136,7 +145,9 @@ export default function (pi: ExtensionAPI) {
   pi.registerProvider(PROVIDER_ID, {
     name: "Command Code",
     baseUrl: API_BASE,
-    apiKey: "COMMAND_CODE_API_KEY",
+    // OMP treats an unresolved apiKey string as a literal credential. Register
+    // only a real environment value; otherwise native /login owns auth.
+    ...(environmentApiKey ? { apiKey: environmentApiKey } : {}),
     authHeader: true,
     api: "commandcode-custom",
     streamSimple: streamCommandCode,
