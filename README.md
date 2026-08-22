@@ -120,6 +120,10 @@ uses OMP's saved credential even when a stale Command Code key remains in
 rows, the most recently pasted login API key is pinned in memory for the
 request; the extension does not rewrite or delete the credential database.
 
+When the browser cannot reach loopback callbacks in a known environment, set
+`COMMANDCODE_AUTH_TIMEOUT_MS` to a shorter positive millisecond value to reach
+the manual paste fallback sooner.
+
 The provider also retains the original compatibility fallback for
 `~/.commandcode/auth.json` and legacy `~/.pi/agent/auth.json` credential files.
 Its manifest retains `pi.extensions` as a compatibility alias in addition to
