@@ -49,7 +49,7 @@ export async function runModelCatalogCli(
       return EXIT_CODES.DRIFT
     }
 
-    for (const warning of catalogDateWarnings(docsRows)) {
+    for (const warning of catalogDateWarnings(docsRows, new Date(), committed.sourceConflicts)) {
       warn(`[models] warning: ${warning}`)
     }
 

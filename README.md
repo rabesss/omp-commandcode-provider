@@ -19,9 +19,9 @@ with or endorsed by Command Code.
   native extension directory; do not run `npm install`.
 - Runtime imports are only tracked local source files, `models.json`, and Node
   built-ins. Its OMP `ExtensionAPI` import is type-only and erased at runtime.
-- It does not contain an API key. Keep `COMMAND_CODE_API_KEY` in
-  `~/.omp/agent/.env`, which should be permission mode `600`, or use OMP's
-  interactive login flow.
+- It does not contain an API key. Prefer OMP's interactive `/login` flow,
+  which stores the credential in OMP's permission-restricted `agent.db` auth
+  store. `COMMAND_CODE_API_KEY` remains available for headless environments.
 - `models.json` is committed source data rather than fetched or executed during
   installation.
 
@@ -36,7 +36,7 @@ send inference requests to `/provider/v1` and does not require a custom API.
 The public `/provider/v1/models` endpoint is used only by the opt-in development
 drift check. The internal generation endpoint is unofficial and may change in a
 future Command Code release, so compatibility is pinned and tested against
-Command Code CLI 1.15.0.
+Command Code CLI 1.32.1.
 
 ## Install
 
@@ -57,7 +57,7 @@ extensions:
 
 OMP also documents native package-directory discovery through the included
 `omp.extensions` manifest, but the explicit entry is the reliable installation
-path tested against OMP 17.2.11.
+path tested against OMP 17.4.2.
 
 No package-manager install or build step is required. Restart `omp`, then verify
 registration:
@@ -86,7 +86,7 @@ extensions:
 
 ### API Key
 
-Create or edit `~/.omp/agent/.env`:
+For headless environments, create or edit `~/.omp/agent/.env`:
 
 ```sh
 mkdir -p ~/.omp/agent
@@ -108,15 +108,22 @@ In interactive OMP, run:
 ```
 
 Select **Command Code**. The extension opens Command Code Studio and accepts a
-one-time `127.0.0.1` callback matching its loopback listener and CSRF state;
-wrong-state callbacks are rejected before any success response. If automatic
-callback transfer is unavailable, it prompts for the API key from the browser
-after 15 seconds. OMP 17 accepts the returned API key directly. Older
+one-time `localhost` callback on a listener bound to `127.0.0.1`, matching the
+current CLI contract and CSRF state. Current callback identity metadata is
+preserved when present; the prior `{apiKey,state}` shape remains accepted for
+compatibility. Wrong-state callbacks are rejected before any success response.
+If automatic callback transfer is unavailable, it prompts for the API key from
+the browser after the CLI-compatible two-minute window. OMP 17 accepts the
+returned API key directly and stores it in `~/.omp/agent/agent.db`. Older
 OAuth-shaped saved credentials remain readable for compatibility. The provider
 uses OMP's saved credential even when a stale Command Code key remains in
 `~/.omp/agent/.env`. When OMP still contains older OAuth-shaped Command Code
 rows, the most recently pasted login API key is pinned in memory for the
 request; the extension does not rewrite or delete the credential database.
+
+When the browser cannot reach loopback callbacks in a known environment, set
+`COMMANDCODE_AUTH_TIMEOUT_MS` to a shorter positive millisecond value to reach
+the manual paste fallback sooner.
 
 The provider also retains the original compatibility fallback for
 `~/.commandcode/auth.json` and legacy `~/.pi/agent/auth.json` credential files.
@@ -137,36 +144,37 @@ through qualified `--model commandcode/<model-id>` selectors.
 
 ## Models
 
-The committed registry matches the 52 models currently exposed by the Command
-Code Provider API and the reviewed Command Code CLI 1.15.0 catalog:
+The committed registry matches the 58 models currently exposed by the Command
+Code Provider API and the reviewed Command Code CLI 1.32.1 catalog:
 
 | Family | Model IDs |
 | --- | --- |
 | Anthropic | `claude-sonnet-5`, `claude-sonnet-4-6`, `claude-fable-5`, `claude-opus-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-haiku-4-5-20251001` |
 | OpenAI | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`, `gpt-5.3-codex`, `gpt-5.4-mini` |
-| DeepSeek | `deepseek/deepseek-v4-pro`, `deepseek/deepseek-v4-flash` |
+| DeepSeek | `deepseek/deepseek-v4-pro`, `deepseek/deepseek-v4-flash`, `deepseek/deepseek-v4-flash-vision-exp` |
 | Moonshot | `moonshotai/Kimi-K3`, `moonshotai/Kimi-K2.7-Code`, `moonshotai/Kimi-K2.7-Code-Highspeed`, `moonshotai/Kimi-K2.6`, `moonshotai/Kimi-K2.5` |
-| Z.AI | `zai-org/GLM-5.2`, `zai-org/GLM-5.2-Fast`, `zai-org/GLM-5.1`, `zai-org/GLM-5` |
+| Z.AI | `zai-org/GLM-5.3`, `zai-org/GLM-5.2`, `zai-org/GLM-5.2-Fast`, `zai-org/GLM-5.1`, `zai-org/GLM-5` |
 | MiniMax | `MiniMaxAI/MiniMax-M3`, `MiniMaxAI/MiniMax-M2.7`, `MiniMaxAI/MiniMax-M2.5` |
-| Qwen | `Qwen/Qwen3.8-Max`, `Qwen/Qwen3.7-Max`, `Qwen/Qwen3.7-Plus`, `Qwen/Qwen3.7-Flash`, `Qwen/Qwen3.6-Max-Preview`, `Qwen/Qwen3.6-Plus` |
+| Qwen | `Qwen/Qwen3.8-Max`, `Qwen/Qwen3.8-27B`, `Qwen/Qwen3.7-Max`, `Qwen/Qwen3.7-Plus`, `Qwen/Qwen3.7-Flash`, `Qwen/Qwen3.6-Max-Preview`, `Qwen/Qwen3.6-Plus` |
 | StepFun | `stepfun/Step-3.7-Flash`, `stepfun/Step-3.5-Flash` |
 | Xiaomi | `xiaomi/mimo-v2.5-pro`, `xiaomi/mimo-v2.5` |
 | Tencent | `tencent/hy3-paid` |
-| Google | `google/gemini-3.6-flash`, `google/gemini-3.5-flash`, `google/gemini-3.5-flash-lite`, `google/gemini-3.1-flash-lite` |
+| Google | `google/gemini-3.7-flash`, `google/gemini-3.6-flash`, `google/gemini-3.5-flash`, `google/gemini-3.5-flash-lite`, `google/gemini-3.1-flash-lite` |
 | Sakana | `sakana/fugu-ultra` |
 | NVIDIA | `nvidia/nemotron-3-ultra-550b-a55b` |
 | Thinking Machines | `thinkingmachines/inkling`, `thinkingmachines/inkling-small` |
+| Stealth | `stealth/ox-alpha` |
 | Poolside | `poolside/laguna-s-2.1-free` |
 | Meta | `meta/muse-spark-1.1`, `meta/muse-spark-1.2`, `meta/muse-spark-1.2-contributor` |
-| xAI | `xai/grok-4.5` |
+| xAI | `xai/grok-4.5`, `xai/grok-4.6` |
 
-The pricing/limits docs currently contain 55 rows: all 52 API models, one active
+The pricing/limits docs currently contain 61 rows: all 58 API models, one active
 docs-only model (`claude-opus-4-6`), and two deprecated models
 (`ling-3.0-flash-free` and `claude-sonnet-4-5`). The extension never registers
-docs-only or deprecated rows automatically. Exactly 32 of the 52 API models are
+docs-only or deprecated rows automatically. Exactly 36 of the 58 API models are
 currently listed for Individual Go.
 
-The extension preserves all 52 API models instead of filtering by account plan,
+The extension preserves all 58 API models instead of filtering by account plan,
 because plan access can change independently of a release. Models outside Go
 are marked in the committed descriptions, and a recognizable upstream
 plan-entitlement error gains an Individual Go hint. Command Code remains the
@@ -180,7 +188,7 @@ authority on actual account access.
 - Pricing/limits docs: plan availability, text/vision/reasoning flags, input and
   output rates, cache-read and five-minute cache-write rates, tier boundaries,
   deals, future price notes, and deprecation state.
-- Command Code CLI 1.15.0: maximum output, reasoning-effort choices, input
+- Command Code CLI 1.32.1: maximum output, reasoning-effort choices, input
   modalities, descriptions, and vendor/provider labels. These fields remain
   manual because the CLI exposes no supported rich catalog endpoint.
 - Reviewed conflict records: source disagreements and their dated decision.
@@ -192,9 +200,11 @@ the maintenance command never invents them or mutates `models.json`.
 OMP accepts one flat cost per token dimension. The extension therefore uses the
 first documented tier. Permanent/current deal rates are reflected, while a
 date-bounded deal uses its first-tier list rate so the committed estimate does
-not silently expire. A missing cache dimension is stored as unsupported rather
-than as a source price of zero. These are advisory estimates only; tiers, deals,
-and the final bill remain authoritative in Command Code Studio Usage.
+not silently expire. Time-of-day prices use the documented peak rate so the
+single OMP estimate never understates a possible charge. A missing cache
+dimension is stored as unsupported rather than as a source price of zero. These
+are advisory estimates only; tiers, deals, and the final bill remain
+authoritative in Command Code Studio Usage.
 
 The extension applies two runtime metadata corrections without altering the
 audited registry: `gpt-5.3-codex` is exposed with a `272K` usable input
@@ -274,11 +284,10 @@ npm run test:live
 
 ## Compatibility Sources
 
-- [OMP v17.2.11](https://github.com/can1357/oh-my-pi/releases/tag/v17.2.11)
+- [OMP v17.4.2](https://github.com/can1357/oh-my-pi/releases/tag/v17.4.2)
 - [Command Code changelog](https://commandcode.ai/docs/resources/changelog)
 - [Command Code pricing and plan limits](https://commandcode.ai/docs/resources/pricing-limits)
-- Command Code CLI 1.15.0's installed generated model reference. At the review
-  date, the public changelog's latest CLI entry was still 1.14.0.
+- Command Code CLI 1.32.1's generated model reference and public changelog.
 
 ## License
 

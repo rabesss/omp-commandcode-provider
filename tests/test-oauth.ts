@@ -34,6 +34,9 @@ describe("startAuthServer()", () => {
     const callbackData: AuthCallback = {
       apiKey: "user_testKey123",
       state: "test-state-token",
+      userId: "user-123",
+      userName: "Test User",
+      keyName: "OMP",
     }
 
     // Simulate the Command Code Studio posting the API key back
@@ -50,6 +53,9 @@ describe("startAuthServer()", () => {
     const result = await waitForCallback
     assert.equal(result.apiKey, "user_testKey123")
     assert.equal(result.state, "test-state-token")
+    assert.equal(result.userId, "user-123")
+    assert.equal(result.userName, "Test User")
+    assert.equal(result.keyName, "OMP")
 
     await waitForClose(server)
   })
@@ -99,6 +105,34 @@ describe("startAuthServer()", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 100))
     server.close()
+  })
+
+  it("accepts the legacy callback shape while preserving CSRF validation", async () => {
+    const { server, port, waitForCallback } = await startAuthServer({
+      startPort: 0,
+      expectedState: "metadata-state",
+    })
+
+    try {
+      const rejected = await fetch(`http://127.0.0.1:${port}/callback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
+        body: JSON.stringify({ apiKey: "user_key", state: "wrong-state" }),
+      })
+      assert.equal(rejected.status, 403)
+
+      const accepted = await fetch(`http://127.0.0.1:${port}/callback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
+        body: JSON.stringify({ apiKey: "user_key", state: "metadata-state" }),
+      })
+
+      assert.equal(accepted.status, 200)
+      assert.deepEqual(await waitForCallback, { apiKey: "user_key", state: "metadata-state" })
+    } finally {
+      if (server.listening) server.close()
+      await waitForClose(server)
+    }
   })
 
   it("does not grant callback CORS to unapproved origins", async () => {
@@ -215,10 +249,10 @@ describe("login()", () => {
     // Wait for onAuth to be called (it fires asynchronously after the auth server starts)
     while (!authUrl) await new Promise((resolve) => setTimeout(resolve, 10))
 
-    // Verify the auth URL was passed to callbacks (callback URL is encoded)
+    // Verify the auth URL matches the current Command Code CLI callback shape.
     assert.match(
       authUrl,
-      /^https:\/\/commandcode\.ai\/studio\/auth\/cli\?callback=http%3A%2F%2F127\.0\.0\.1%3A\d+%2Fcallback&state=/,
+      /^https:\/\/commandcode\.ai\/studio\/auth\/cli\?callback=http%3A%2F%2Flocalhost%3A\d+%2Fcallback&state=/,
     )
 
     // Extract port and state from the URL
@@ -227,12 +261,12 @@ describe("login()", () => {
     const port = parseInt(callback.port)
     const state = url.searchParams.get("state") ?? ""
 
-    assert.equal(callback.hostname, "127.0.0.1")
+    assert.equal(callback.hostname, "localhost")
     assert.ok(port > 0, "auth server should be on a non-zero port")
     assert.ok(state.length > 0, "state token should not be empty")
 
     // Simulate the Command Code Studio posting the API key back
-    const response = await fetch(`http://127.0.0.1:${port}/callback`, {
+    const response = await fetch(callback.href, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -241,6 +275,9 @@ describe("login()", () => {
       body: JSON.stringify({
         apiKey: "user_browserApiKey",
         state,
+        userId: "user-browser",
+        userName: "Browser User",
+        keyName: "OMP",
       }),
     })
 
@@ -303,6 +340,9 @@ describe("login()", () => {
       body: JSON.stringify({
         apiKey: "user_badState",
         state: "wrong-state-token",
+        userId: "user-bad",
+        userName: "Bad State",
+        keyName: "OMP",
       }),
     })
 
@@ -312,7 +352,13 @@ describe("login()", () => {
     const validResponse = await fetch(`http://127.0.0.1:${port}/callback`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
-      body: JSON.stringify({ apiKey: "user_goodState", state }),
+      body: JSON.stringify({
+        apiKey: "user_goodState",
+        state,
+        userId: "user-good",
+        userName: "Good State",
+        keyName: "OMP",
+      }),
     })
 
     assert.equal(validResponse.status, 200)

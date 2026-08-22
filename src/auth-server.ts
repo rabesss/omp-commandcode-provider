@@ -19,6 +19,9 @@ const ALLOWED_ORIGINS = new Set([
 export interface AuthCallback {
   apiKey: string
   state: string
+  userId?: string
+  userName?: string
+  keyName?: string
 }
 
 export interface AuthServer {
@@ -190,7 +193,16 @@ export async function startAuthServer(options: AuthServerOptions): Promise<AuthS
         res.writeHead(200)
         res.end(JSON.stringify({ success: true }))
 
-        resolveCallback({ apiKey, state })
+        const userId = typeof parsed.userId === "string" ? parsed.userId.trim() : ""
+        const userName = typeof parsed.userName === "string" ? parsed.userName.trim() : ""
+        const keyName = typeof parsed.keyName === "string" ? parsed.keyName.trim() : ""
+        resolveCallback({
+          apiKey,
+          state,
+          ...(userId ? { userId } : {}),
+          ...(userName ? { userName } : {}),
+          ...(keyName ? { keyName } : {}),
+        })
         closeServer(server)
       } catch {
         res.writeHead(400)

@@ -43,7 +43,7 @@ export * from "./model-capabilities.ts"
 export * from "./types.ts"
 
 export const DEFAULT_API_BASE = "https://api.commandcode.ai"
-export const COMMAND_CODE_CLI_VERSION = "1.15.0"
+export const COMMAND_CODE_CLI_VERSION = "1.32.1"
 const COMMAND_CODE_MAX_OUTPUT_TOKENS = 200_000
 const DEFAULT_MAX_RETRIES = 0
 const DEFAULT_MAX_RETRY_DELAY_MS = 60_000

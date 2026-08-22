@@ -34,11 +34,13 @@ const expectedModels = [
   "gpt-5.4-mini",
   "deepseek/deepseek-v4-pro",
   "deepseek/deepseek-v4-flash",
+  "deepseek/deepseek-v4-flash-vision-exp",
   "moonshotai/Kimi-K3",
   "moonshotai/Kimi-K2.7-Code",
   "moonshotai/Kimi-K2.7-Code-Highspeed",
   "moonshotai/Kimi-K2.6",
   "moonshotai/Kimi-K2.5",
+  "zai-org/GLM-5.3",
   "zai-org/GLM-5.2",
   "zai-org/GLM-5.2-Fast",
   "zai-org/GLM-5.1",
@@ -49,6 +51,7 @@ const expectedModels = [
   "xiaomi/mimo-v2.5-pro",
   "xiaomi/mimo-v2.5",
   "Qwen/Qwen3.8-Max",
+  "Qwen/Qwen3.8-27B",
   "Qwen/Qwen3.7-Max",
   "Qwen/Qwen3.7-Plus",
   "Qwen/Qwen3.7-Flash",
@@ -57,6 +60,7 @@ const expectedModels = [
   "stepfun/Step-3.7-Flash",
   "stepfun/Step-3.5-Flash",
   "tencent/hy3-paid",
+  "google/gemini-3.7-flash",
   "google/gemini-3.6-flash",
   "google/gemini-3.5-flash",
   "google/gemini-3.5-flash-lite",
@@ -65,11 +69,13 @@ const expectedModels = [
   "nvidia/nemotron-3-ultra-550b-a55b",
   "thinkingmachines/inkling",
   "thinkingmachines/inkling-small",
+  "stealth/ox-alpha",
   "poolside/laguna-s-2.1-free",
   "meta/muse-spark-1.1",
   "meta/muse-spark-1.2",
   "meta/muse-spark-1.2-contributor",
   "xai/grok-4.5",
+  "xai/grok-4.6",
 ]
 
 describe("Command Code model registry", () => {
@@ -117,7 +123,7 @@ describe("Command Code model registry", () => {
     })
 
     assert.equal(providerName, "commandcode")
-    assert.equal(providerConfig?.apiKey, "COMMAND_CODE_API_KEY")
+    assert.notEqual(providerConfig?.apiKey, "COMMAND_CODE_API_KEY")
     assert.deepEqual(
       providerConfig?.models?.map((model) => model.id),
       expectedModels,
@@ -158,6 +164,10 @@ describe("Command Code model registry", () => {
       ["text", "image"],
     )
     assert.deepEqual(
+      providerConfig?.models?.find((model) => model.id === "stealth/ox-alpha")?.input,
+      ["text", "image"],
+    )
+    assert.deepEqual(
       providerConfig?.models?.find((model) => model.id === "sakana/fugu-ultra")?.input,
       ["text", "image"],
     )
@@ -172,6 +182,18 @@ describe("Command Code model registry", () => {
     assert.deepEqual(
       providerConfig?.models?.find((model) => model.id === "claude-sonnet-5")?.thinking,
       { mode: "effort", efforts: ["low", "medium", "high", "xhigh", "max"] },
+    )
+    assert.deepEqual(
+      providerConfig?.models?.find((model) => model.id === "stealth/ox-alpha")?.thinking,
+      { mode: "effort", efforts: ["low", "high", "max"] },
+    )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "stealth/ox-alpha")?.contextWindow,
+      1_048_576,
+    )
+    assert.equal(
+      providerConfig?.models?.find((model) => model.id === "stealth/ox-alpha")?.maxTokens,
+      131_072,
     )
     assert.equal(
       providerConfig?.models?.find((model) => model.id === "moonshotai/Kimi-K3")?.thinking,
@@ -212,8 +234,52 @@ describe("Command Code model registry", () => {
     )
     assert.equal(
       providerConfig?.models?.find((model) => model.id === "deepseek/deepseek-v4-pro")?.cost.input,
-      0.435,
+      1.32,
     )
+    assert.equal(
+      runtimeCatalog.models.find((model) => model.id === "deepseek/deepseek-v4-pro")?.pricingBasis,
+      "time-of-day-peak",
+    )
+  })
+
+  it("registers a real environment key but never an unresolved placeholder", () => {
+    const canonical = process.env.COMMAND_CODE_API_KEY
+    const legacy = process.env.COMMANDCODE_API_KEY
+    try {
+      process.env.COMMAND_CODE_API_KEY = "user_current_environment_key"
+      process.env.COMMANDCODE_API_KEY = "user_legacy_environment_key"
+      let apiKey: string | undefined
+      commandCodeExtension({
+        on() {},
+        registerProvider(_name, config) {
+          apiKey = config.apiKey
+        },
+      })
+      assert.equal(apiKey, "user_current_environment_key")
+
+      delete process.env.COMMAND_CODE_API_KEY
+      commandCodeExtension({
+        on() {},
+        registerProvider(_name, config) {
+          apiKey = config.apiKey
+        },
+      })
+      assert.equal(apiKey, "user_legacy_environment_key")
+
+      delete process.env.COMMANDCODE_API_KEY
+      commandCodeExtension({
+        on() {},
+        registerProvider(_name, config) {
+          apiKey = config.apiKey
+        },
+      })
+      assert.equal(apiKey, undefined)
+    } finally {
+      if (canonical === undefined) delete process.env.COMMAND_CODE_API_KEY
+      else process.env.COMMAND_CODE_API_KEY = canonical
+      if (legacy === undefined) delete process.env.COMMANDCODE_API_KEY
+      else process.env.COMMANDCODE_API_KEY = legacy
+    }
   })
 
   it("prefers the current pasted login key over legacy OAuth and environment fallbacks", () => {
@@ -338,7 +404,7 @@ describe("Command Code model registry", () => {
       assert.equal(row?.deprecated, false)
     }
 
-    assert.equal(new Set(modelsJson.models.map((model) => model.docsId)).size, 52)
+    assert.equal(new Set(modelsJson.models.map((model) => model.docsId)).size, 58)
     assert.deepEqual(modelsJson.source.pricingDocs.docsOnlyActive, ["claude-opus-4-6"])
     assert.deepEqual(modelsJson.source.pricingDocs.deprecated, [
       "ling-3.0-flash-free",
@@ -358,12 +424,12 @@ describe("Command Code model registry", () => {
     }
   })
 
-  it("only advertises zero pricing for the explicitly free model", () => {
+  it("only advertises zero pricing for the explicitly free models", () => {
     const zeroPriced = runtimeCatalog.models
       .filter((model) => model.cost.input === 0 && model.cost.output === 0)
       .map((model) => model.id)
 
-    assert.deepEqual(zeroPriced, ["poolside/laguna-s-2.1-free"])
+    assert.deepEqual(zeroPriced, ["stealth/ox-alpha", "poolside/laguna-s-2.1-free"])
   })
 
   it("skips only a corruptly-priced model instead of claiming it is free", () => {
@@ -373,7 +439,7 @@ describe("Command Code model registry", () => {
     row.tiers = []
 
     const result = buildRuntimeCatalog(corrupt)
-    assert.equal(result.models.length, 51)
+    assert.equal(result.models.length, 57)
     assert.ok(result.issues.includes("missing first-tier pricing for gpt-5.4"))
     assert.equal(result.models.some((model) => model.id === "gpt-5.4"), false)
 
@@ -384,14 +450,14 @@ describe("Command Code model registry", () => {
     ])
 
     const missingListRate = structuredClone(modelsJson)
-    const terra = missingListRate.source.pricingDocs.rows.find(
-      (entry) => entry.id === "gpt-5.6-terra",
+    const gemini37 = missingListRate.source.pricingDocs.rows.find(
+      (entry) => entry.id === "gemini-3.7-flash",
     )
-    assert.ok(terra)
-    terra.tiers[0].listRates = null
+    assert.ok(gemini37)
+    gemini37.tiers[0].listRates = null
     const missingListResult = buildRuntimeCatalog(missingListRate)
-    assert.equal(missingListResult.models.some((entry) => entry.id === "gpt-5.6-terra"), false)
-    assert.ok(missingListResult.issues.includes("missing first-tier pricing for gpt-5.6-terra"))
+    assert.equal(missingListResult.models.some((entry) => entry.id === "google/gemini-3.7-flash"), false)
+    assert.ok(missingListResult.issues.includes("missing first-tier pricing for google/gemini-3.7-flash"))
 
     const missingTiers = structuredClone(modelsJson)
     const missingTiersRow = missingTiers.source.pricingDocs.rows.find(
@@ -400,7 +466,7 @@ describe("Command Code model registry", () => {
     assert.ok(missingTiersRow)
     delete (missingTiersRow as Partial<typeof missingTiersRow>).tiers
     const missingTiersResult = buildRuntimeCatalog(missingTiers)
-    assert.equal(missingTiersResult.models.length, 51)
+    assert.equal(missingTiersResult.models.length, 57)
     assert.ok(missingTiersResult.issues.includes("missing first-tier pricing for gpt-5.4"))
 
     const missingRates = structuredClone(modelsJson)
@@ -410,7 +476,7 @@ describe("Command Code model registry", () => {
     assert.ok(missingRatesRow)
     delete (missingRatesRow.tiers[0] as Partial<(typeof missingRatesRow.tiers)[number]>).rates
     const missingRatesResult = buildRuntimeCatalog(missingRates)
-    assert.equal(missingRatesResult.models.length, 51)
+    assert.equal(missingRatesResult.models.length, 57)
     assert.ok(missingRatesResult.issues.includes("invalid first-tier pricing for gpt-5.4"))
   })
 
@@ -421,7 +487,7 @@ describe("Command Code model registry", () => {
     delete (row as Partial<typeof row>).availability
 
     const result = buildRuntimeCatalog(corrupt)
-    assert.equal(result.models.length, 52)
+    assert.equal(result.models.length, 58)
     assert.deepEqual(result.issues, [])
     assert.equal(
       result.models.find((entry) => entry.id === "gpt-5.4")?.availableOnIndividualGo,
@@ -454,7 +520,7 @@ describe("Command Code model registry", () => {
           registered = config.models?.length ?? 0
         },
       })
-      assert.equal(registered, 52)
+      assert.equal(registered, 58)
     } finally {
       globalThis.fetch = originalFetch
     }

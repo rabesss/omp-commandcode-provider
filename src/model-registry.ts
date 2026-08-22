@@ -22,6 +22,15 @@ export interface CatalogDocsRow {
   caps: { text: boolean; vision: boolean; reasoning: boolean }
   tiers: CatalogTier[]
   deal?: { expires?: string }
+  timeOfDay?: {
+    effective: string
+    peak: CatalogRates
+    offPeak: CatalogRates
+    peakHoursPerDay: number
+    offPeakHoursPerDay: number
+    windows: string
+    tip: string
+  }
 }
 
 export interface CatalogModel {
@@ -59,7 +68,7 @@ export interface RuntimeCatalogModel extends CatalogModel {
     cacheRead: number
     cacheWrite: number
   }
-  pricingBasis: "effective-first-tier" | "list-first-tier"
+  pricingBasis: "effective-first-tier" | "list-first-tier" | "time-of-day-peak"
   cacheReadSupported: boolean
   cacheWriteSupported: boolean
 }
@@ -87,6 +96,11 @@ function staticRates(row: CatalogDocsRow): {
   const firstTier = row.tiers?.[0]
   if (!firstTier) return undefined
 
+  // OMP can expose only one static rate. For time-of-day pricing, use the
+  // documented peak rate so estimates never understate the possible charge.
+  if (row.timeOfDay) {
+    return { rates: row.timeOfDay.peak, basis: "time-of-day-peak" }
+  }
   // Date-bounded discounts make a committed runtime price silently stale when
   // the date rolls over. Keep their list rate static; permanent/current prices
   // use the documented first tier. The maintenance check still records deals.
