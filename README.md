@@ -109,8 +109,9 @@ In interactive OMP, run:
 
 Select **Command Code**. The extension opens Command Code Studio and accepts a
 one-time `localhost` callback on a listener bound to `127.0.0.1`, matching the
-current CLI contract and CSRF state. The current callback identity metadata is
-required, and wrong-state callbacks are rejected before any success response.
+current CLI contract and CSRF state. Current callback identity metadata is
+preserved when present; the prior `{apiKey,state}` shape remains accepted for
+compatibility. Wrong-state callbacks are rejected before any success response.
 If automatic callback transfer is unavailable, it prompts for the API key from
 the browser after the CLI-compatible two-minute window. OMP 17 accepts the
 returned API key directly and stores it in `~/.omp/agent/agent.db`. Older

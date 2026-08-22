@@ -107,23 +107,21 @@ describe("startAuthServer()", () => {
     server.close()
   })
 
-  it("rejects callbacks that omit current Command Code identity metadata", async () => {
-    const { server, port } = await startAuthServer({
+  it("accepts the legacy callback shape while preserving CSRF validation", async () => {
+    const { server, port, waitForCallback } = await startAuthServer({
       startPort: 0,
       expectedState: "metadata-state",
     })
 
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/callback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
-        body: JSON.stringify({ apiKey: "user_key", state: "metadata-state" }),
-      })
+    const response = await fetch(`http://127.0.0.1:${port}/callback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
+      body: JSON.stringify({ apiKey: "user_key", state: "metadata-state" }),
+    })
 
-      assert.equal(response.status, 400)
-    } finally {
-      server.close()
-    }
+    assert.equal(response.status, 200)
+    assert.deepEqual(await waitForCallback, { apiKey: "user_key", state: "metadata-state" })
+    await waitForClose(server)
   })
 
   it("does not grant callback CORS to unapproved origins", async () => {
@@ -257,7 +255,7 @@ describe("login()", () => {
     assert.ok(state.length > 0, "state token should not be empty")
 
     // Simulate the Command Code Studio posting the API key back
-    const response = await fetch(`http://127.0.0.1:${port}/callback`, {
+    const response = await fetch(callback.href, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

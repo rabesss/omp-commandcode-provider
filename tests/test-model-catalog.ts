@@ -87,6 +87,39 @@ describe("model catalog source validation", () => {
     assert.ok(invalidDynamic?.timeOfDay)
     invalidDynamic.timeOfDay.effective = "2026-02-30T00:00:00Z"
     assert.throws(() => normalizeDocsRows(invalidDynamicDate), /valid ISO UTC timestamp/)
+
+    const lowerPeak = structuredClone(rows)
+    const lowerPeakRow = lowerPeak.find((row) => row.timeOfDay)
+    assert.ok(lowerPeakRow?.timeOfDay)
+    lowerPeakRow.timeOfDay.peak.input = lowerPeakRow.timeOfDay.offPeak.input - 0.01
+    assert.throws(() => normalizeDocsRows(lowerPeak), /peak rate must be greater/)
+
+    const zeroPeakHours = structuredClone(rows)
+    const zeroPeakRow = zeroPeakHours.find((row) => row.timeOfDay)
+    assert.ok(zeroPeakRow?.timeOfDay)
+    zeroPeakRow.timeOfDay.peakHoursPerDay = 0
+    zeroPeakRow.timeOfDay.offPeakHoursPerDay = 24
+    assert.throws(() => normalizeDocsRows(zeroPeakHours), /peakHoursPerDay must be positive/)
+
+    const mismatchedOffPeak = structuredClone(rows)
+    const mismatchedRow = mismatchedOffPeak.find((row) => row.timeOfDay)
+    assert.ok(mismatchedRow?.timeOfDay)
+    mismatchedRow.tiers[0].rates.input += 0.01
+    assert.throws(() => normalizeDocsRows(mismatchedOffPeak), /must match timeOfDay.offPeak/)
+
+    const ambiguousSchedule = structuredClone(rows)
+    const ambiguousRow = ambiguousSchedule.find((row) => row.timeOfDay)
+    assert.ok(ambiguousRow)
+    ambiguousRow.deal = {
+      id: "ambiguous-deal",
+      discountPercent: 10,
+      free: false,
+      expires: "2026-12-31T23:59:59Z",
+    }
+    assert.throws(
+      () => normalizeDocsRows(ambiguousSchedule),
+      /cannot combine an expiring deal with time-of-day pricing/,
+    )
   })
 
   it("distinguishes transient fetch failures from extraction failures", async () => {
@@ -249,6 +282,9 @@ describe("committed model catalog", () => {
     const warnings = catalogDateWarnings(rows, new Date("2026-08-22T12:00:00Z"))
     assert.ok(warnings.some((warning) => warning.startsWith("qwen-3.7-max:")))
     assert.ok(!warnings.some((warning) => warning.startsWith("gpt-5.6-terra:")))
+    assert.ok(
+      warnings.some((warning) => warning.startsWith("deepseek-v4-pro: documented time-of-day")),
+    )
   })
 
   it("enforces override lifecycle and verification staleness", () => {

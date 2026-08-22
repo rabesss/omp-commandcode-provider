@@ -173,16 +173,30 @@ function normalizeTimeOfDay(value, label) {
     `${label}.effective must be a valid ISO UTC timestamp`,
   )
   for (const key of ["peakHoursPerDay", "offPeakHoursPerDay"]) {
-    assertExtraction(finiteNonNegative(value[key]), `${label}.${key} must be non-negative`)
+    assertExtraction(
+      finiteNonNegative(value[key]) && value[key] > 0,
+      `${label}.${key} must be positive`,
+    )
   }
   assertExtraction(
     value.peakHoursPerDay + value.offPeakHoursPerDay === 24,
     `${label} hours must total 24`,
   )
+  const peak = normalizeRates(value.peak, `${label}.peak`)
+  const offPeak = normalizeRates(value.offPeak, `${label}.offPeak`)
+  for (const key of RATE_KEYS) {
+    const peakRate = peak[key]
+    const offPeakRate = offPeak[key]
+    assertExtraction(
+      (peakRate === null && offPeakRate === null) ||
+        (peakRate !== null && offPeakRate !== null && peakRate >= offPeakRate),
+      `${label}.${key} peak rate must be greater than or equal to off-peak`,
+    )
+  }
   return {
     effective,
-    peak: normalizeRates(value.peak, `${label}.peak`),
-    offPeak: normalizeRates(value.offPeak, `${label}.offPeak`),
+    peak,
+    offPeak,
     peakHoursPerDay: value.peakHoursPerDay,
     offPeakHoursPerDay: value.offPeakHoursPerDay,
     windows: requiredString(value.windows, `${label}.windows`),
@@ -294,7 +308,18 @@ export function normalizeDocsRows(rows) {
         text: requiredString(row.priceChangeNote.text, `${label}.priceChangeNote.text`),
       }
     }
+    const deal = normalizeDeal(row.deal, `${label}.deal`)
     const timeOfDay = normalizeTimeOfDay(row.timeOfDay, `${label}.timeOfDay`)
+    assertExtraction(
+      !(deal?.expires && timeOfDay),
+      `${label} cannot combine an expiring deal with time-of-day pricing`,
+    )
+    if (timeOfDay) {
+      assertExtraction(
+        JSON.stringify(tiers[0].rates) === JSON.stringify(timeOfDay.offPeak),
+        `${label}.tiers[0].rates must match timeOfDay.offPeak`,
+      )
+    }
     return {
       id,
       name: requiredString(row.name, `${label}.name`),
@@ -308,7 +333,7 @@ export function normalizeDocsRows(rows) {
         reasoning: row.caps.reasoning,
       },
       tiers,
-      ...(row.deal === undefined ? {} : { deal: normalizeDeal(row.deal, `${label}.deal`) }),
+      ...(deal === undefined ? {} : { deal }),
       ...(row.note === undefined ? {} : { note: requiredString(row.note, `${label}.note`) }),
       ...(row.tip === undefined ? {} : { tip: requiredString(row.tip, `${label}.tip`) }),
       ...(priceChangeNote === undefined ? {} : { priceChangeNote }),
@@ -552,6 +577,11 @@ export function catalogDateWarnings(rows, now = new Date()) {
     if (row.priceChangeNote?.effective && Date.parse(row.priceChangeNote.effective) <= nowMs) {
       warnings.push(
         `${row.id}: documented price-change date has arrived (${row.priceChangeNote.effective})`,
+      )
+    }
+    if (row.timeOfDay?.effective && Date.parse(row.timeOfDay.effective) <= nowMs) {
+      warnings.push(
+        `${row.id}: documented time-of-day pricing date has arrived (${row.timeOfDay.effective})`,
       )
     }
   }

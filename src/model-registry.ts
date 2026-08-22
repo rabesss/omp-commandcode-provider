@@ -96,6 +96,11 @@ function staticRates(row: CatalogDocsRow): {
   const firstTier = row.tiers?.[0]
   if (!firstTier) return undefined
 
+  // OMP can expose only one static rate. For time-of-day pricing, use the
+  // documented peak rate so estimates never understate the possible charge.
+  if (row.timeOfDay) {
+    return { rates: row.timeOfDay.peak, basis: "time-of-day-peak" }
+  }
   // Date-bounded discounts make a committed runtime price silently stale when
   // the date rolls over. Keep their list rate static; permanent/current prices
   // use the documented first tier. The maintenance check still records deals.
@@ -103,11 +108,6 @@ function staticRates(row: CatalogDocsRow): {
     return firstTier.listRates
       ? { rates: firstTier.listRates, basis: "list-first-tier" }
       : undefined
-  }
-  // OMP can expose only one static rate. For time-of-day pricing, use the
-  // documented peak rate so estimates never understate the possible charge.
-  if (row.timeOfDay) {
-    return { rates: row.timeOfDay.peak, basis: "time-of-day-peak" }
   }
   return { rates: firstTier.rates, basis: "effective-first-tier" }
 }

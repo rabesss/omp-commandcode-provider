@@ -2500,6 +2500,21 @@
       "rationale": "Defaulted to the conservative documented capability because an Individual Go live probe could not reach inference.",
       "verifiedAt": "2026-08-22",
       "evidence": "Pricing docs still mark reasoning false while Command Code CLI 1.32.1 exposes low through max effort choices."
+    },
+    {
+      "modelId": "claude-sonnet-5",
+      "field": "pricingSchedule",
+      "chosen": {
+        "source": "pricing-docs@2026-08-22",
+        "value": "current $2 input / $10 output rates with no scheduled revert"
+      },
+      "conflicting": {
+        "source": "pricing-docs@2026-08-08",
+        "value": "introductory rates scheduled to revert on 2026-09-01"
+      },
+      "rationale": "The current pricing source removed the September revert note while retaining the same rates, so the latest reviewed source is treated as authoritative rather than carrying forward a deleted schedule.",
+      "verifiedAt": "2026-08-22",
+      "evidence": "The 2026-08-22 live pricing row has $2/$10 rates, no deal, and no priceChangeNote; the previous reviewed snapshot carried a 2026-09-01 revert note."
     }
   ],
   "providers": {

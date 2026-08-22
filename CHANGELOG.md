@@ -30,8 +30,8 @@
 - A secret-scrubbed, eight-token, free-model direct live adapter smoke test.
 - In-memory preference for the current pasted login API key when legacy
   OAuth-shaped Command Code rows remain in OMP's credential pool.
-- CLI-compatible two-minute browser login, `localhost` callback URL, and the
-  current callback identity metadata contract.
+- CLI-compatible two-minute browser login, `localhost` callback URL, current
+  callback identity metadata, and compatibility with the prior callback shape.
 
 ### Fixed
 
@@ -43,3 +43,6 @@
   reject expiring deals without a stable list rate.
 - Clear a pinned login key after its stored credential is deleted, and verify
   raw live-test output for credential-shaped leaks before scrubbing diagnostics.
+- Validate peak/off-peak ordering, positive schedule windows, tier alignment,
+  and ambiguous deal combinations; record the removed Claude Sonnet 5 revert
+  schedule as a dated source decision instead of dropping it silently.
