@@ -27,7 +27,7 @@ jobs:
         run: |
           node -e 'const p=require("./package.json"); for (const key of ["dependencies","devDependencies","optionalDependencies","peerDependencies"]) if (p[key] && Object.keys(p[key]).length) throw new Error(key + " must stay empty")'
       - name: Install pinned OMP test runtime
-        run: npm install --global @oh-my-pi/pi-coding-agent@17.2.11
+        run: npm install --global @oh-my-pi/pi-coding-agent@17.4.2
       - name: Run tests
         run: npm test
 
