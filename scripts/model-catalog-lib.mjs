@@ -188,8 +188,11 @@ function normalizeTimeOfDay(value, label) {
     const peakRate = peak[key]
     const offPeakRate = offPeak[key]
     assertExtraction(
-      (peakRate === null && offPeakRate === null) ||
-        (peakRate !== null && offPeakRate !== null && peakRate >= offPeakRate),
+      (peakRate === null) === (offPeakRate === null),
+      `${label}.${key} peak and off-peak rates must both be null or both be numbers`,
+    )
+    assertExtraction(
+      peakRate === null || offPeakRate === null || peakRate >= offPeakRate,
       `${label}.${key} peak rate must be greater than or equal to off-peak`,
     )
   }
@@ -311,8 +314,8 @@ export function normalizeDocsRows(rows) {
     const deal = normalizeDeal(row.deal, `${label}.deal`)
     const timeOfDay = normalizeTimeOfDay(row.timeOfDay, `${label}.timeOfDay`)
     assertExtraction(
-      !(deal?.expires && timeOfDay),
-      `${label} cannot combine an expiring deal with time-of-day pricing`,
+      !(deal && timeOfDay),
+      `${label} cannot combine a deal with time-of-day pricing`,
     )
     if (timeOfDay) {
       assertExtraction(
@@ -528,6 +531,16 @@ export function validateCommittedCatalog(catalog, now = new Date()) {
     const ageMs = now.getTime() - verifiedAt
     assertExtraction(ageMs >= 0, `${label}.verifiedAt must not be in the future`)
     assertExtraction(ageMs <= 180 * 24 * 60 * 60 * 1000, `${label} is older than 180 days`)
+    if (conflict.reviewAfter !== undefined) {
+      const reviewAfter = requiredString(conflict.reviewAfter, `${label}.reviewAfter`)
+      const reviewAfterMs = Date.parse(`${reviewAfter}T00:00:00.000Z`)
+      assertExtraction(
+        /^\d{4}-\d{2}-\d{2}$/.test(reviewAfter) &&
+          !Number.isNaN(reviewAfterMs) &&
+          new Date(reviewAfterMs).toISOString().slice(0, 10) === reviewAfter,
+        `${label}.reviewAfter must be a valid ISO date`,
+      )
+    }
   }
   return catalog
 }
@@ -566,7 +579,7 @@ export function buildProposal(catalog, providerModels, docsRows) {
   }
 }
 
-export function catalogDateWarnings(rows, now = new Date()) {
+export function catalogDateWarnings(rows, now = new Date(), sourceConflicts = []) {
   const nowMs = now.getTime()
   const warnings = []
   for (const row of rows) {
@@ -582,6 +595,13 @@ export function catalogDateWarnings(rows, now = new Date()) {
     if (row.timeOfDay?.effective && Date.parse(row.timeOfDay.effective) <= nowMs) {
       warnings.push(
         `${row.id}: documented time-of-day pricing date has arrived (${row.timeOfDay.effective})`,
+      )
+    }
+  }
+  for (const conflict of sourceConflicts) {
+    if (conflict.reviewAfter && Date.parse(conflict.reviewAfter) <= nowMs) {
+      warnings.push(
+        `${conflict.modelId}: source-conflict review date has arrived (${conflict.reviewAfter})`,
       )
     }
   }

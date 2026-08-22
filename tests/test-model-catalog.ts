@@ -94,6 +94,21 @@ describe("model catalog source validation", () => {
     lowerPeakRow.timeOfDay.peak.input = lowerPeakRow.timeOfDay.offPeak.input - 0.01
     assert.throws(() => normalizeDocsRows(lowerPeak), /peak rate must be greater/)
 
+    const asymmetricCacheRate = structuredClone(rows)
+    const asymmetricCacheRow = asymmetricCacheRate.find((row) => row.timeOfDay)
+    assert.ok(asymmetricCacheRow?.timeOfDay)
+    asymmetricCacheRow.timeOfDay.peak.cacheRead = null
+    assert.throws(
+      () => normalizeDocsRows(asymmetricCacheRate),
+      /peak and off-peak rates must both be null or both be numbers/,
+    )
+
+    const equalPeak = structuredClone(rows)
+    const equalPeakRow = equalPeak.find((row) => row.timeOfDay)
+    assert.ok(equalPeakRow?.timeOfDay)
+    equalPeakRow.timeOfDay.peak.input = equalPeakRow.timeOfDay.offPeak.input
+    assert.doesNotThrow(() => normalizeDocsRows(equalPeak))
+
     const zeroPeakHours = structuredClone(rows)
     const zeroPeakRow = zeroPeakHours.find((row) => row.timeOfDay)
     assert.ok(zeroPeakRow?.timeOfDay)
@@ -118,7 +133,21 @@ describe("model catalog source validation", () => {
     }
     assert.throws(
       () => normalizeDocsRows(ambiguousSchedule),
-      /cannot combine an expiring deal with time-of-day pricing/,
+      /cannot combine a deal with time-of-day pricing/,
+    )
+
+    const unboundedDealSchedule = structuredClone(rows)
+    const unboundedDealRow = unboundedDealSchedule.find((row) => row.timeOfDay)
+    assert.ok(unboundedDealRow)
+    unboundedDealRow.deal = {
+      id: "unbounded-deal",
+      discountPercent: 10,
+      free: false,
+      endsWhen: "while promotional capacity lasts",
+    }
+    assert.throws(
+      () => normalizeDocsRows(unboundedDealSchedule),
+      /cannot combine a deal with time-of-day pricing/,
     )
   })
 
@@ -279,11 +308,27 @@ describe("committed model catalog", () => {
 
   it("reports date-bound source metadata without changing catalog values", () => {
     const rows = extractPricingRowsFromHtml(pricingHtml)
-    const warnings = catalogDateWarnings(rows, new Date("2026-08-22T12:00:00Z"))
+    const warnings = catalogDateWarnings(
+      rows,
+      new Date("2026-08-22T12:00:00Z"),
+      modelsJson.sourceConflicts,
+    )
     assert.ok(warnings.some((warning) => warning.startsWith("qwen-3.7-max:")))
     assert.ok(!warnings.some((warning) => warning.startsWith("gpt-5.6-terra:")))
     assert.ok(
       warnings.some((warning) => warning.startsWith("deepseek-v4-pro: documented time-of-day")),
+    )
+    assert.ok(!warnings.some((warning) => warning.startsWith("claude-sonnet-5:")))
+
+    const postReviewWarnings = catalogDateWarnings(
+      rows,
+      new Date("2026-09-01T12:00:00Z"),
+      modelsJson.sourceConflicts,
+    )
+    assert.ok(
+      postReviewWarnings.some((warning) =>
+        warning.startsWith("claude-sonnet-5: source-conflict review date"),
+      ),
     )
   })
 
@@ -300,6 +345,13 @@ describe("committed model catalog", () => {
     assert.throws(
       () => validateCommittedCatalog(noLongerConflicting, new Date("2026-08-22T12:00:00Z")),
       /does not describe a real value conflict/,
+    )
+
+    const invalidReviewDate = structuredClone(modelsJson)
+    invalidReviewDate.sourceConflicts[1].reviewAfter = "2026-02-30"
+    assert.throws(
+      () => validateCommittedCatalog(invalidReviewDate, new Date("2026-08-22T12:00:00Z")),
+      /reviewAfter must be a valid ISO date/,
     )
   })
 

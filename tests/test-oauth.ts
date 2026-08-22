@@ -113,15 +113,26 @@ describe("startAuthServer()", () => {
       expectedState: "metadata-state",
     })
 
-    const response = await fetch(`http://127.0.0.1:${port}/callback`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
-      body: JSON.stringify({ apiKey: "user_key", state: "metadata-state" }),
-    })
+    try {
+      const rejected = await fetch(`http://127.0.0.1:${port}/callback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
+        body: JSON.stringify({ apiKey: "user_key", state: "wrong-state" }),
+      })
+      assert.equal(rejected.status, 403)
 
-    assert.equal(response.status, 200)
-    assert.deepEqual(await waitForCallback, { apiKey: "user_key", state: "metadata-state" })
-    await waitForClose(server)
+      const accepted = await fetch(`http://127.0.0.1:${port}/callback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "https://commandcode.ai" },
+        body: JSON.stringify({ apiKey: "user_key", state: "metadata-state" }),
+      })
+
+      assert.equal(accepted.status, 200)
+      assert.deepEqual(await waitForCallback, { apiKey: "user_key", state: "metadata-state" })
+    } finally {
+      if (server.listening) server.close()
+      await waitForClose(server)
+    }
   })
 
   it("does not grant callback CORS to unapproved origins", async () => {

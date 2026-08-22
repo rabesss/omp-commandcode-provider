@@ -2514,6 +2514,7 @@
       },
       "rationale": "The current pricing source removed the September revert note while retaining the same rates, so the latest reviewed source is treated as authoritative rather than carrying forward a deleted schedule.",
       "verifiedAt": "2026-08-22",
+      "reviewAfter": "2026-09-01",
       "evidence": "The 2026-08-22 live pricing row has $2/$10 rates, no deal, and no priceChangeNote; the previous reviewed snapshot carried a 2026-09-01 revert note."
     }
   ],
