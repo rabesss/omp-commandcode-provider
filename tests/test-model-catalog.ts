@@ -353,6 +353,15 @@ describe("committed model catalog", () => {
       () => validateCommittedCatalog(invalidReviewDate, new Date("2026-08-22T12:00:00Z")),
       /reviewAfter must be a valid ISO date/,
     )
+    assert.throws(
+      () =>
+        catalogDateWarnings(
+          extractPricingRowsFromHtml(pricingHtml),
+          new Date("2026-08-22T12:00:00Z"),
+          invalidReviewDate.sourceConflicts,
+        ),
+      /reviewAfter must be a valid ISO date/,
+    )
   })
 
   it("rejects an active expiring deal without a static list rate", () => {

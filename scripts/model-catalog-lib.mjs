@@ -85,6 +85,18 @@ function requiredString(value, label) {
   return value
 }
 
+function parseStrictIsoDate(value, label) {
+  const date = requiredString(value, label)
+  const parsed = Date.parse(`${date}T00:00:00.000Z`)
+  assertExtraction(
+    /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+      !Number.isNaN(parsed) &&
+      new Date(parsed).toISOString().slice(0, 10) === date,
+    `${label} must be a valid ISO date`,
+  )
+  return parsed
+}
+
 function optionalString(value, label) {
   if (value === undefined || value === null) return undefined
   return requiredString(value, label)
@@ -532,14 +544,7 @@ export function validateCommittedCatalog(catalog, now = new Date()) {
     assertExtraction(ageMs >= 0, `${label}.verifiedAt must not be in the future`)
     assertExtraction(ageMs <= 180 * 24 * 60 * 60 * 1000, `${label} is older than 180 days`)
     if (conflict.reviewAfter !== undefined) {
-      const reviewAfter = requiredString(conflict.reviewAfter, `${label}.reviewAfter`)
-      const reviewAfterMs = Date.parse(`${reviewAfter}T00:00:00.000Z`)
-      assertExtraction(
-        /^\d{4}-\d{2}-\d{2}$/.test(reviewAfter) &&
-          !Number.isNaN(reviewAfterMs) &&
-          new Date(reviewAfterMs).toISOString().slice(0, 10) === reviewAfter,
-        `${label}.reviewAfter must be a valid ISO date`,
-      )
+      parseStrictIsoDate(conflict.reviewAfter, `${label}.reviewAfter`)
     }
   }
   return catalog
@@ -599,7 +604,12 @@ export function catalogDateWarnings(rows, now = new Date(), sourceConflicts = []
     }
   }
   for (const conflict of sourceConflicts) {
-    if (conflict.reviewAfter && Date.parse(conflict.reviewAfter) <= nowMs) {
+    if (conflict.reviewAfter !== undefined) {
+      const reviewAfterMs = parseStrictIsoDate(
+        conflict.reviewAfter,
+        `${conflict.modelId}.reviewAfter`,
+      )
+      if (reviewAfterMs > nowMs) continue
       warnings.push(
         `${conflict.modelId}: source-conflict review date has arrived (${conflict.reviewAfter})`,
       )
