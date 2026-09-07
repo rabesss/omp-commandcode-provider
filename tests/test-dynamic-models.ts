@@ -191,7 +191,7 @@ describe("live catalog overlay merge", () => {
   it("keeps reviewed metadata for known ids and conservative defaults for new ids", () => {
     const merged = mergeLiveProviderModels(
       [
-        { id: "claude-sonnet-5", name: "Claude Sonnet 5 Live", contextWindow: 2_000_000 },
+        { id: "claude-sonnet-5", name: "Claude Sonnet 5 Live", contextWindow: 150_000 },
         { id: "example/new-model", name: "Example New Model", contextWindow: 128_000 },
         { id: "tiny/context", name: "Tiny Context", contextWindow: 4_096 },
         { id: "wide/context", name: "Wide Context", contextWindow: 1_000_000 },
@@ -203,7 +203,7 @@ describe("live catalog overlay merge", () => {
     assert.deepEqual(merged[0], {
       ...overlay[0],
       name: "Claude Sonnet 5 Live (CC)",
-      contextWindow: 2_000_000,
+      contextWindow: 150_000,
     })
     assert.equal(overlay[0].name, "Claude Sonnet 5 (CC)")
     assert.equal(overlay[0].contextWindow, 1_000_000)
