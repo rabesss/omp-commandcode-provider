@@ -151,15 +151,20 @@ OMP registers `fetchDynamicModels` against the public Provider catalog
 with the committed `models.json` overlay:
 
 - Known IDs keep reviewed vision, reasoning, thinking efforts, pricing, and
-  max-output metadata (including the two OMP presentation overrides below).
+  max-output metadata. Live display names use the same `(CC)` suffix as new
+  IDs, and live `contextWindow` replaces the committed value so a reduced
+  upstream context takes effect without a release.
 - New live IDs appear automatically as text-only models with reasoning off and
   no invented pricing (OMP still requires a numeric cost object, so unreviewed
-  rows use zeros; that is unknown, not a free-plan claim).
+  rows use zeros; that is unknown, not a free-plan claim). Unreviewed
+  `maxTokens` is `min(live context, 65536)`.
 - `models.json` is not the sole roster. It is the capability overlay and the
   static `models` fallback OMP uses when discovery fails or times out (OMP
   caches discovery for about 24 hours with a 15s hard timeout).
 - The extension does not auto-write `models.json`. `models:check` /
-  `models:proposal` remain optional maintenance tools for overlay quality.
+  `models:proposal` are optional maintenance and development tools. They hit
+  the Provider API and pricing docs, stay read-only, and never write
+  `models.json`.
 
 The committed overlay currently covers these 58 models from Command Code CLI
 1.32.1:
@@ -224,11 +229,13 @@ dimension is stored as unsupported rather than as a source price of zero. These
 are advisory estimates only; tiers, deals, and the final bill remain
 authoritative in Command Code Studio Usage.
 
-The extension applies two runtime metadata corrections without altering the
-audited registry: `gpt-5.3-codex` is exposed with a `272K` usable input
-context because its `128K` output budget is separate in OMP, and the DeepSeek
-models are exposed with `200K` maximum output because the Command Code gateway
-currently rejects larger `max_tokens` requests.
+The static fallback applies two presentation corrections without altering the
+audited registry: `gpt-5.3-codex` uses a `272K` usable input context because
+its `128K` output budget is separate in OMP, and the DeepSeek models use
+`200K` maximum output because the Command Code gateway currently rejects
+larger `max_tokens` requests. Live discovery keeps those DeepSeek output caps
+from the overlay and uses the Provider catalog context window for every known
+ID, including `gpt-5.3-codex`.
 
 The provider also registers vision-capable models with `["text", "image"]`
 modalities so OMP can route image-enabled tasks (for example `inspect_image`)

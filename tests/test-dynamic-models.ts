@@ -199,7 +199,19 @@ describe("live catalog overlay merge", () => {
       overlay,
     )
 
-    assert.equal(merged[0], overlay[0])
+    assert.notEqual(merged[0], overlay[0])
+    assert.deepEqual(merged[0], {
+      ...overlay[0],
+      name: "Claude Sonnet 5 Live (CC)",
+      contextWindow: 2_000_000,
+    })
+    assert.equal(overlay[0].name, "Claude Sonnet 5 (CC)")
+    assert.equal(overlay[0].contextWindow, 1_000_000)
+    assert.equal(merged[0]?.reasoning, true)
+    assert.equal(merged[0]?.maxTokens, 64_000)
+    assert.deepEqual(merged[0]?.thinking, overlay[0].thinking)
+    assert.deepEqual(merged[0]?.input, overlay[0].input)
+    assert.deepEqual(merged[0]?.cost, overlay[0].cost)
     assert.deepEqual(merged[1], {
       id: "example/new-model",
       name: "Example New Model (CC)",
@@ -209,6 +221,7 @@ describe("live catalog overlay merge", () => {
       contextWindow: 128_000,
       maxTokens: UNREVIEWED_MODEL_MAX_TOKENS,
     })
+    assert.equal(UNREVIEWED_MODEL_MAX_TOKENS, 65_536)
     assert.equal(merged[2]?.maxTokens, 4_096)
     assert.equal(merged[3]?.reasoning, false)
     assert.deepEqual(merged[3]?.input, TEXT_INPUT)
@@ -239,7 +252,12 @@ describe("live Provider catalog fetch", () => {
     assert.equal(headers.get("accept"), "application/json")
     assert.equal(headers.get("authorization"), null)
     assert.equal(models.length, 58)
-    assert.equal(models[0], overlay[0])
+    assert.notEqual(models[0], overlay[0])
+    assert.deepEqual(models[0], {
+      ...overlay[0],
+      name: "Claude Sonnet 5 (CC)",
+      contextWindow: 1_000_000,
+    })
     assert.equal(
       models.find((model) => model.id === "deepseek/deepseek-v4-flash")?.reasoning,
       false,
@@ -369,7 +387,10 @@ describe("OMP fetchDynamicModels registration", () => {
         efforts: ["low", "medium", "high", "xhigh", "max"],
       })
       assert.deepEqual(sonnet?.input, TEXT_IMAGE_INPUT)
-      assert.equal(gpt53?.contextWindow, 272_000)
+      assert.equal(sonnet?.name, "Claude Sonnet 5 (CC)")
+      assert.equal(sonnet?.contextWindow, 1_000_000)
+      assert.equal(gpt53?.name, "GPT-5.3 Codex (CC)")
+      assert.equal(gpt53?.contextWindow, 400_000)
       assert.equal(added?.reasoning, false)
       assert.deepEqual(added?.input, TEXT_INPUT)
       assert.equal(added?.cost.input, 0)

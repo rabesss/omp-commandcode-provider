@@ -6,10 +6,12 @@
 
 - Fetch the live Command Code Provider model catalog at runtime and merge it
   with the committed `models.json` overlay. New IDs appear automatically with
-  conservative text-only defaults; known IDs keep reviewed
-  vision/reasoning/pricing/max-output metadata. The static `models` list remains
-  the cold-start fallback. `models:check` / `models:proposal` stay optional
-  overlay-quality tools and still never write `models.json`.
+  conservative text-only defaults and a 65,536-token output cap, still bounded
+  by live context. Known IDs keep reviewed vision, reasoning, pricing, and
+  max-output metadata, and take live display names and context windows. The
+  static `models` list remains the cold-start fallback. `models:check` /
+  `models:proposal` stay optional maintenance tools that fetch the Provider API
+  and pricing docs; they never write `models.json`.
 
 ### Changed
 

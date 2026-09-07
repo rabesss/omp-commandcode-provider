@@ -7,7 +7,7 @@ export const DYNAMIC_MODEL_FETCH_TIMEOUT_MS = 10_000
 export const DYNAMIC_MODEL_MAX_BODY_BYTES = 1_048_576
 export const DYNAMIC_MODEL_MAX_COUNT = 256
 export const DYNAMIC_MODEL_MAX_CONTEXT_WINDOW = 16_777_216
-export const UNREVIEWED_MODEL_MAX_TOKENS = 32_768
+export const UNREVIEWED_MODEL_MAX_TOKENS = 65_536
 
 const MODEL_ID_PATTERN =
   /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:\/[A-Za-z0-9][A-Za-z0-9._:-]{0,127})?$/
@@ -139,7 +139,13 @@ export function mergeLiveProviderModels(
   const overlayById = new Map(overlay.map((model) => [model.id, model]))
   return live.map((row) => {
     const known = overlayById.get(row.id)
-    if (known) return known
+    if (known) {
+      return {
+        ...known,
+        name: `${row.name} (CC)`,
+        contextWindow: row.contextWindow,
+      }
+    }
     return {
       id: row.id,
       name: `${row.name} (CC)`,
