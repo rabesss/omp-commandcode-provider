@@ -159,7 +159,7 @@ with the committed `models.json` overlay:
   static `models` fallback OMP uses when discovery fails or times out (OMP
   caches discovery for about 24 hours with a 15s hard timeout).
 - The extension does not auto-write `models.json`. `models:check` /
-  `models:proposal` remain optional offline tools for overlay quality.
+  `models:proposal` remain optional maintenance tools for overlay quality.
 
 The committed overlay currently covers these 58 models from Command Code CLI
 1.32.1:
