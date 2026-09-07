@@ -51,6 +51,26 @@ let lastRequestBody
 let lastRequestHeaders = {}
 
 const server = createServer((req, res) => {
+  if (req.method === "GET" && req.url === "/provider/v1/models") {
+    res.writeHead(200, { "Content-Type": "application/json" })
+    res.end(
+      JSON.stringify({
+        object: "list",
+        data: [
+          {
+            id: TEST_MODEL,
+            object: "model",
+            owned_by: "command-code",
+            name: "DeepSeek V4 Flash",
+            context_length: 384_000,
+            created: 0,
+          },
+        ],
+      }),
+    )
+    return
+  }
+
   if (req.method !== "POST" || req.url !== "/alpha/generate") {
     res.writeHead(404)
     res.end("Not found")

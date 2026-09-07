@@ -91,6 +91,7 @@ describe("Command Code model registry", () => {
     let providerConfig:
       | {
           apiKey?: string
+          fetchDynamicModels?: (apiKey?: string) => Promise<unknown>
           models?: Array<{
             id: string
             input: readonly string[]
@@ -109,6 +110,7 @@ describe("Command Code model registry", () => {
         providerName = name
         providerConfig = config as {
           apiKey?: string
+          fetchDynamicModels?: (apiKey?: string) => Promise<unknown>
           models?: Array<{
             id: string
             input: readonly string[]
@@ -124,6 +126,7 @@ describe("Command Code model registry", () => {
 
     assert.equal(providerName, "commandcode")
     assert.notEqual(providerConfig?.apiKey, "COMMAND_CODE_API_KEY")
+    assert.equal(typeof providerConfig?.fetchDynamicModels, "function")
     assert.deepEqual(
       providerConfig?.models?.map((model) => model.id),
       expectedModels,

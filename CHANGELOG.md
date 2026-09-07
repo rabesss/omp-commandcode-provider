@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- Fetch the live Command Code Provider model catalog at runtime and merge it
+  with the committed `models.json` overlay. New IDs appear automatically with
+  conservative text-only defaults; known IDs keep reviewed
+  vision/reasoning/pricing/max-output metadata. The static `models` list remains
+  the cold-start fallback. `models:check` / `models:proposal` stay optional
+  overlay-quality tools and still never write `models.json`.
+
 ### Changed
 
 - Pin the adapter compatibility header and reviewed rich-model snapshot to

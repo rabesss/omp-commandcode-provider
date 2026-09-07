@@ -9,7 +9,8 @@
  *   3. Place API key in `~/.commandcode/auth.json` or legacy `~/.pi/agent/auth.json`
  *      as {"apiKey": "user_..."} or {"commandcode": "user_..."}
  *
- * Models are sourced from the reviewed, committed models.json registry.
+ * Models: committed models.json is the capability overlay and cold-start
+ * fallback. At runtime, fetchDynamicModels merges the live Provider catalog.
  */
 
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent"
@@ -21,6 +22,10 @@ import {
   DEFAULT_API_BASE,
   modelInputModalities,
 } from "./src/core.ts"
+import {
+  fetchDynamicModels as loadDynamicModels,
+  type ProviderModelConfig,
+} from "./src/dynamic-models.ts"
 import { getApiKey, login, refreshToken } from "./src/oauth.ts"
 import {
   buildRuntimeCatalog,
@@ -74,10 +79,10 @@ const MODEL_OVERRIDES: Record<string, { contextWindow?: number; maxTokens?: numb
 }
 
 // ---------------------------------------------------------------------------
-// Build OMP model list (all defaults come from models.json)
+// Build OMP model list (reviewed overlay + cold-start fallback)
 // ---------------------------------------------------------------------------
 
-const MODELS = runtimeCatalog.models.map((m) => {
+const MODELS: ProviderModelConfig[] = runtimeCatalog.models.map((m) => {
   const override = MODEL_OVERRIDES[m.id]
   return {
     id: m.id,
@@ -87,6 +92,7 @@ const MODELS = runtimeCatalog.models.map((m) => {
       m.reasoningEfforts && m.reasoningEfforts.length > 0
         ? { mode: "effort" as const, efforts: m.reasoningEfforts }
         : undefined,
+    input: modelInputModalities(m.id),
     contextWindow: override?.contextWindow ?? m.contextWindow,
     maxTokens: override?.maxTokens ?? m.maxOutputTokens,
     cost: m.cost,
@@ -161,15 +167,11 @@ export default function (pi: ExtensionAPI) {
       refreshToken,
       getApiKey,
     },
-    models: MODELS.map((model) => ({
-      id: model.id,
-      name: model.name,
-      reasoning: model.reasoning,
-      thinking: model.thinking,
-      input: modelInputModalities(model.id),
-      cost: model.cost,
-      contextWindow: model.contextWindow,
-      maxTokens: model.maxTokens,
-    })),
+    models: MODELS,
+    fetchDynamicModels: (_apiKey?: string) =>
+      loadDynamicModels({
+        overlay: MODELS,
+        apiBase: API_BASE,
+      }),
   })
 }
