@@ -152,8 +152,10 @@ with the committed `models.json` overlay:
 
 - Known IDs keep reviewed vision, reasoning, thinking efforts, pricing, and
   max-output metadata. Live display names use the same `(CC)` suffix as new
-  IDs, and live `contextWindow` replaces the committed value so a reduced
-  upstream context takes effect without a release.
+  IDs. When overlay `contextWindow` plus overlay `maxTokens` equals the live
+  catalog total, discovery keeps the overlay usable-input window. Otherwise it
+  takes the live `contextWindow`, so a reduced or unrelated upstream window
+  applies without a release.
 - New live IDs appear automatically as text-only models with reasoning off and
   no invented pricing (OMP still requires a numeric cost object, so unreviewed
   rows use zeros; that is unknown, not a free-plan claim). Unreviewed
@@ -229,13 +231,15 @@ dimension is stored as unsupported rather than as a source price of zero. These
 are advisory estimates only; tiers, deals, and the final bill remain
 authoritative in Command Code Studio Usage.
 
-The static fallback applies two presentation corrections without altering the
-audited registry: `gpt-5.3-codex` uses a `272K` usable input context because
-its `128K` output budget is separate in OMP, and the DeepSeek models use
-`200K` maximum output because the Command Code gateway currently rejects
-larger `max_tokens` requests. Live discovery keeps those DeepSeek output caps
-from the overlay and uses the Provider catalog context window for every known
-ID, including `gpt-5.3-codex`.
+The overlay applies two presentation corrections without altering the audited
+registry. `gpt-5.3-codex` uses a `272K` usable input context because OMP stores
+usable input separately from that model's `128K` output budget. The DeepSeek
+models use `200K` maximum output because the Command Code gateway currently
+rejects larger `max_tokens` requests. Live discovery keeps those DeepSeek
+output caps from the overlay. It also keeps the `gpt-5.3-codex` `272K`
+usable-input window when the live catalog total still equals that usable input
+plus the overlay `maxTokens`. A live context that does not match that split
+replaces the overlay window.
 
 The provider also registers vision-capable models with `["text", "image"]`
 modalities so OMP can route image-enabled tasks (for example `inspect_image`)

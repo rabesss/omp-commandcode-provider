@@ -143,7 +143,10 @@ export function mergeLiveProviderModels(
       return {
         ...known,
         name: `${row.name} (CC)`,
-        contextWindow: row.contextWindow,
+        contextWindow:
+          known.contextWindow + known.maxTokens === row.contextWindow
+            ? known.contextWindow
+            : row.contextWindow,
       }
     }
     return {

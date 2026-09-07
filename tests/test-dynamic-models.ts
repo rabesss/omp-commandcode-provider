@@ -189,14 +189,34 @@ describe("live Provider catalog validation", () => {
 
 describe("live catalog overlay merge", () => {
   it("keeps reviewed metadata for known ids and conservative defaults for new ids", () => {
+    const presentationSplit: ProviderModelConfig = {
+      id: "gpt-5.3-codex",
+      name: "GPT-5.3 Codex Overlay (CC)",
+      reasoning: true,
+      input: TEXT_INPUT,
+      cost: { input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: 1.75 },
+      contextWindow: 272_000,
+      maxTokens: 128_000,
+    }
+    const genuineDrop: ProviderModelConfig = {
+      id: "wide/known",
+      name: "Wide Known Overlay (CC)",
+      reasoning: false,
+      input: TEXT_INPUT,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 1_000_000,
+      maxTokens: 64_000,
+    }
     const merged = mergeLiveProviderModels(
       [
         { id: "claude-sonnet-5", name: "Claude Sonnet 5 Live", contextWindow: 150_000 },
         { id: "example/new-model", name: "Example New Model", contextWindow: 128_000 },
         { id: "tiny/context", name: "Tiny Context", contextWindow: 4_096 },
         { id: "wide/context", name: "Wide Context", contextWindow: 1_000_000 },
+        { id: "gpt-5.3-codex", name: "GPT-5.3 Codex Live", contextWindow: 400_000 },
+        { id: "wide/known", name: "Wide Known Live", contextWindow: 500_000 },
       ],
-      overlay,
+      [...overlay, presentationSplit, genuineDrop],
     )
 
     assert.notEqual(merged[0], overlay[0])
@@ -226,6 +246,16 @@ describe("live catalog overlay merge", () => {
     assert.equal(merged[3]?.reasoning, false)
     assert.deepEqual(merged[3]?.input, TEXT_INPUT)
     assert.equal(merged[3]?.maxTokens, UNREVIEWED_MODEL_MAX_TOKENS)
+    const split = merged.find((model) => model.id === "gpt-5.3-codex")
+    assert.equal(split?.name, "GPT-5.3 Codex Live (CC)")
+    assert.equal(split?.contextWindow, 272_000)
+    assert.equal(split?.maxTokens, 128_000)
+    assert.equal(presentationSplit.contextWindow, 272_000)
+    const dropped = merged.find((model) => model.id === "wide/known")
+    assert.equal(dropped?.name, "Wide Known Live (CC)")
+    assert.equal(dropped?.contextWindow, 500_000)
+    assert.equal(dropped?.maxTokens, 64_000)
+    assert.equal(genuineDrop.contextWindow, 1_000_000)
     assert.equal(
       merged.some((model) => model.id === "overlay-only/model"),
       false,
@@ -391,7 +421,7 @@ describe("OMP fetchDynamicModels registration", () => {
       assert.equal(sonnet?.name, "Claude Sonnet 5 (CC)")
       assert.equal(sonnet?.contextWindow, 1_000_000)
       assert.equal(gpt53?.name, "GPT-5.3 Codex (CC)")
-      assert.equal(gpt53?.contextWindow, 400_000)
+      assert.equal(gpt53?.contextWindow, 272_000)
       assert.equal(gpt53?.maxTokens, 128_000)
       assert.equal(deepSeekFlash?.maxTokens, 200_000)
       assert.equal(added?.reasoning, false)
