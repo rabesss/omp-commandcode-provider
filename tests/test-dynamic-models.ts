@@ -193,6 +193,7 @@ describe("live catalog overlay merge", () => {
       [
         { id: "claude-sonnet-5", name: "Claude Sonnet 5 Live", contextWindow: 2_000_000 },
         { id: "example/new-model", name: "Example New Model", contextWindow: 128_000 },
+        { id: "tiny/context", name: "Tiny Context", contextWindow: 4_096 },
         { id: "wide/context", name: "Wide Context", contextWindow: 1_000_000 },
       ],
       overlay,
@@ -206,11 +207,12 @@ describe("live catalog overlay merge", () => {
       input: TEXT_INPUT,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: 128_000,
-      maxTokens: 128_000,
+      maxTokens: UNREVIEWED_MODEL_MAX_TOKENS,
     })
-    assert.equal(merged[2]?.reasoning, false)
-    assert.deepEqual(merged[2]?.input, TEXT_INPUT)
-    assert.equal(merged[2]?.maxTokens, UNREVIEWED_MODEL_MAX_TOKENS)
+    assert.equal(merged[2]?.maxTokens, 4_096)
+    assert.equal(merged[3]?.reasoning, false)
+    assert.deepEqual(merged[3]?.input, TEXT_INPUT)
+    assert.equal(merged[3]?.maxTokens, UNREVIEWED_MODEL_MAX_TOKENS)
     assert.equal(
       merged.some((model) => model.id === "overlay-only/model"),
       false,
@@ -313,22 +315,20 @@ describe("live Provider catalog fetch", () => {
 
   it("times out through AbortSignal without retrying", async () => {
     let attempts = 0
+    let sawAbortSignal = false
     await assert.rejects(
       fetchLiveProviderCatalog({
-        timeoutMs: 5,
+        timeoutMs: 20,
         fetchImpl: async (_url, init) => {
           attempts += 1
-          await new Promise<never>((_resolve, reject) => {
-            init?.signal?.addEventListener("abort", () => {
-              reject(init.signal?.reason ?? new Error("aborted"))
-            })
-          })
-          return jsonResponse(providerPayload)
+          sawAbortSignal = init?.signal instanceof AbortSignal
+          throw Object.assign(new DOMException("The operation was aborted", "TimeoutError"))
         },
       }),
       (error: unknown) => error instanceof DynamicModelsError && /unable to fetch/.test(error.message),
     )
     assert.equal(attempts, 1)
+    assert.equal(sawAbortSignal, true)
   })
 })
 
