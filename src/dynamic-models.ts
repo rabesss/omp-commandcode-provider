@@ -10,7 +10,7 @@ export const DYNAMIC_MODEL_MAX_CONTEXT_WINDOW = 16_777_216
 export const UNREVIEWED_MODEL_MAX_TOKENS = 200_000
 
 const MODEL_ID_PATTERN =
-  /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}(?:\/[A-Za-z0-9][A-Za-z0-9._-]{0,127})?$/
+  /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:\/[A-Za-z0-9][A-Za-z0-9._:-]{0,127})?$/
 const OWNED_BY_PATTERN = /^command[-_\s]?code$/i
 const UNREVIEWED_MODEL_COST = Object.freeze({
   input: 0,

@@ -83,6 +83,25 @@ describe("live Provider catalog validation", () => {
     assert.equal(rows[0]?.contextWindow, 1_000_000)
   })
 
+  it("accepts OpenRouter-style colon suffixes used by the live catalog", () => {
+    const rows = validateLiveProviderPayload({
+      object: "list",
+      data: [
+        {
+          id: "meituan/LongCat-2.0:free",
+          object: "model",
+          owned_by: "command-code",
+          name: "LongCat 2.0 Free",
+          context_length: 128_000,
+          created: 1,
+        },
+      ],
+    })
+    assert.deepEqual(rows, [
+      { id: "meituan/LongCat-2.0:free", name: "LongCat 2.0 Free", contextWindow: 128_000 },
+    ])
+  })
+
   it("allows extra row fields and commandcode-ish owners", () => {
     for (const ownedBy of ["command-code", "commandcode", "Command Code", "command_code"]) {
       const rows = validateLiveProviderPayload({
