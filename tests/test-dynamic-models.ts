@@ -31,7 +31,7 @@ const overlay: ProviderModelConfig[] = [
     input: TEXT_IMAGE_INPUT,
     cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
     contextWindow: 1_000_000,
-    maxTokens: 64_000,
+    maxTokens: 200_000,
   },
   {
     id: "overlay-only/model",
@@ -208,7 +208,7 @@ describe("live catalog overlay merge", () => {
     assert.equal(overlay[0].name, "Claude Sonnet 5 (CC)")
     assert.equal(overlay[0].contextWindow, 1_000_000)
     assert.equal(merged[0]?.reasoning, true)
-    assert.equal(merged[0]?.maxTokens, 64_000)
+    assert.equal(merged[0]?.maxTokens, 200_000)
     assert.deepEqual(merged[0]?.thinking, overlay[0].thinking)
     assert.deepEqual(merged[0]?.input, overlay[0].input)
     assert.deepEqual(merged[0]?.cost, overlay[0].cost)
@@ -382,6 +382,7 @@ describe("OMP fetchDynamicModels registration", () => {
       const sonnet = models?.find((model) => model.id === "claude-sonnet-5")
       const added = models?.find((model) => model.id === "example/new-model")
       const gpt53 = models?.find((model) => model.id === "gpt-5.3-codex")
+      const deepSeekFlash = models?.find((model) => model.id === "deepseek/deepseek-v4-flash")
       assert.deepEqual(sonnet?.thinking, {
         mode: "effort",
         efforts: ["low", "medium", "high", "xhigh", "max"],
@@ -391,6 +392,8 @@ describe("OMP fetchDynamicModels registration", () => {
       assert.equal(sonnet?.contextWindow, 1_000_000)
       assert.equal(gpt53?.name, "GPT-5.3 Codex (CC)")
       assert.equal(gpt53?.contextWindow, 400_000)
+      assert.equal(gpt53?.maxTokens, 128_000)
+      assert.equal(deepSeekFlash?.maxTokens, 200_000)
       assert.equal(added?.reasoning, false)
       assert.deepEqual(added?.input, TEXT_INPUT)
       assert.equal(added?.cost.input, 0)
