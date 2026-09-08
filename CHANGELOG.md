@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Added
+
+- Fetch the live Command Code Provider model catalog at runtime and merge it
+  with the committed `models.json` overlay. New IDs appear automatically with
+  conservative text-only defaults and a 65,536-token output cap, still bounded
+  by live context. Known IDs keep reviewed vision, reasoning, pricing, and
+  max-output metadata, and take live display names. Overlay usable-input
+  `contextWindow` survives discovery when it plus overlay `maxTokens` equals
+  the live catalog total. Otherwise known IDs take the live context window.
+  The static `models` list remains the cold-start fallback. `models:check` /
+  `models:proposal` stay optional maintenance tools that fetch the Provider API
+  and pricing docs; they never write `models.json`.
+
+### Fixed
+
+- Keep the `gpt-5.3-codex` 272K usable-input overlay on the discovery path when
+  the live catalog total still equals overlay input plus overlay output.
+
 ### Changed
 
 - Pin the adapter compatibility header and reviewed rich-model snapshot to

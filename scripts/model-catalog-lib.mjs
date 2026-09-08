@@ -1,3 +1,5 @@
+import { PROVIDER_MODELS_URL } from "../src/dynamic-models.ts"
+
 const PROVIDER_KEYS = ["context_length", "created", "id", "name", "object", "owned_by"]
 const AVAILABILITY_KEYS = [
   "all",
@@ -28,7 +30,7 @@ const DOC_ROW_KEYS = new Set([
 const RATE_KEYS = ["input", "output", "cacheRead", "cacheWrite"]
 const MAX_SOURCE_RETRY_DELAY_MS = 60_000
 
-export const PROVIDER_MODELS_URL = "https://api.commandcode.ai/provider/v1/models"
+export { PROVIDER_MODELS_URL }
 export const PRICING_DOCS_URL = "https://commandcode.ai/docs/resources/pricing-limits"
 
 export const EXIT_CODES = Object.freeze({

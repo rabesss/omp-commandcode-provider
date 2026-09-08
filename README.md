@@ -22,8 +22,9 @@ with or endorsed by Command Code.
 - It does not contain an API key. Prefer OMP's interactive `/login` flow,
   which stores the credential in OMP's permission-restricted `agent.db` auth
   store. `COMMAND_CODE_API_KEY` remains available for headless environments.
-- `models.json` is committed source data rather than fetched or executed during
-  installation.
+- `models.json` is committed overlay/cold-start data rather than executed during
+  installation. At runtime the extension also fetches the public
+  `/provider/v1/models` list (anonymous JSON; no API key).
 
 ## Go Plan Transport Boundary
 
@@ -33,10 +34,11 @@ generation requests through the same authenticated internal CLI endpoint,
 `/alpha/generate`, using the user's existing Command Code token. It does not
 send inference requests to `/provider/v1` and does not require a custom API.
 
-The public `/provider/v1/models` endpoint is used only by the opt-in development
-drift check. The internal generation endpoint is unofficial and may change in a
-future Command Code release, so compatibility is pinned and tested against
-Command Code CLI 1.32.1.
+The public `/provider/v1/models` endpoint is fetched at runtime for anonymous
+model listing and by the opt-in development drift check. It does not require
+OAuth. Inference still uses `/alpha/generate`. The internal generation endpoint
+is unofficial and may change in a future Command Code release, so compatibility
+is pinned and tested against Command Code CLI 1.32.1.
 
 ## Install
 
@@ -144,8 +146,30 @@ through qualified `--model commandcode/<model-id>` selectors.
 
 ## Models
 
-The committed registry matches the 58 models currently exposed by the Command
-Code Provider API and the reviewed Command Code CLI 1.32.1 catalog:
+OMP registers `fetchDynamicModels` against the public Provider catalog
+(`GET https://api.commandcode.ai/provider/v1/models`). The live ID list is merged
+with the committed `models.json` overlay:
+
+- Known IDs keep reviewed vision, reasoning, thinking efforts, pricing, and
+  max-output metadata. Live display names use the same `(CC)` suffix as new
+  IDs. When overlay `contextWindow` plus overlay `maxTokens` equals the live
+  catalog total, discovery keeps the overlay usable-input window. Otherwise it
+  takes the live `contextWindow`, so a reduced or unrelated upstream window
+  applies without a release.
+- New live IDs appear automatically as text-only models with reasoning off and
+  no invented pricing (OMP still requires a numeric cost object, so unreviewed
+  rows use zeros; that is unknown, not a free-plan claim). Unreviewed
+  `maxTokens` is `min(live context, 65536)`.
+- `models.json` is not the sole roster. It is the capability overlay and the
+  static `models` fallback OMP uses when discovery fails or times out (OMP
+  caches discovery for about 24 hours with a 15s hard timeout).
+- The extension does not auto-write `models.json`. `models:check` /
+  `models:proposal` are optional maintenance and development tools. They hit
+  the Provider API and pricing docs, stay read-only, and never write
+  `models.json`.
+
+The committed overlay currently covers these 58 models from Command Code CLI
+1.32.1:
 
 | Family | Model IDs |
 | --- | --- |
@@ -168,23 +192,24 @@ Code Provider API and the reviewed Command Code CLI 1.32.1 catalog:
 | Meta | `meta/muse-spark-1.1`, `meta/muse-spark-1.2`, `meta/muse-spark-1.2-contributor` |
 | xAI | `xai/grok-4.5`, `xai/grok-4.6` |
 
-The pricing/limits docs currently contain 61 rows: all 58 API models, one active
-docs-only model (`claude-opus-4-6`), and two deprecated models
+The pricing/limits docs currently contain 61 rows: all 58 overlay API models,
+one active docs-only model (`claude-opus-4-6`), and two deprecated models
 (`ling-3.0-flash-free` and `claude-sonnet-4-5`). The extension never registers
-docs-only or deprecated rows automatically. Exactly 36 of the 58 API models are
-currently listed for Individual Go.
+docs-only or deprecated rows automatically. Exactly 36 of the overlay's 58 API
+models are currently listed for Individual Go.
 
-The extension preserves all 58 API models instead of filtering by account plan,
-because plan access can change independently of a release. Models outside Go
-are marked in the committed descriptions, and a recognizable upstream
+Runtime discovery keeps the full live catalog instead of filtering by account
+plan, because plan access can change independently of a release. Models outside
+Go are marked in the committed descriptions, and a recognizable upstream
 plan-entitlement error gains an Individual Go hint. Command Code remains the
 authority on actual account access.
 
 ### Catalog Sources And Automatic Fields
 
-`models.json` is an offline reviewed snapshot with explicit source boundaries:
+`models.json` is an offline reviewed overlay with explicit source boundaries:
 
 - Provider API: exact live IDs, display names, context windows, and ordering.
+  Runtime discovery uses this list; the committed file is the fallback roster.
 - Pricing/limits docs: plan availability, text/vision/reasoning flags, input and
   output rates, cache-read and five-minute cache-write rates, tier boundaries,
   deals, future price notes, and deprecation state.
@@ -193,9 +218,9 @@ authority on actual account access.
   manual because the CLI exposes no supported rich catalog endpoint.
 - Reviewed conflict records: source disagreements and their dated decision.
 
-This means source-exposed fields can be checked and proposed automatically.
-New models are report-only until every CLI-only rich field has been reviewed;
-the maintenance command never invents them or mutates `models.json`.
+Runtime discovery can list a new live ID immediately with conservative
+text-only defaults. Rich overlay fields stay report-only until reviewed;
+`models:check` / `models:proposal` never invent them or mutate `models.json`.
 
 OMP accepts one flat cost per token dimension. The extension therefore uses the
 first documented tier. Permanent/current deal rates are reflected, while a
@@ -206,11 +231,15 @@ dimension is stored as unsupported rather than as a source price of zero. These
 are advisory estimates only; tiers, deals, and the final bill remain
 authoritative in Command Code Studio Usage.
 
-The extension applies two runtime metadata corrections without altering the
-audited registry: `gpt-5.3-codex` is exposed with a `272K` usable input
-context because its `128K` output budget is separate in OMP, and the DeepSeek
-models are exposed with `200K` maximum output because the Command Code gateway
-currently rejects larger `max_tokens` requests.
+The overlay applies two presentation corrections without altering the audited
+registry. `gpt-5.3-codex` uses a `272K` usable input context because OMP stores
+usable input separately from that model's `128K` output budget. The DeepSeek
+models use `200K` maximum output because the Command Code gateway currently
+rejects larger `max_tokens` requests. Live discovery keeps those DeepSeek
+output caps from the overlay. It also keeps the `gpt-5.3-codex` `272K`
+usable-input window when the live catalog total still equals that usable input
+plus the overlay `maxTokens`. A live context that does not match that split
+replaces the overlay window.
 
 The provider also registers vision-capable models with `["text", "image"]`
 modalities so OMP can route image-enabled tasks (for example `inspect_image`)
@@ -224,15 +253,16 @@ Check both public sources without installing or executing npm package contents:
 ```sh
 npm run models:check
 npm run models:proposal
-node --test tests/test-model-catalog.ts tests/test-model-registry.ts
+node --test tests/test-model-catalog.ts tests/test-model-registry.ts \
+  tests/test-dynamic-models.ts
 ```
 
 `models:check` is read-only and distinguishes catalog drift, transient network
 failure, and structural extraction failure. It validates both the Provider API
 and the official pricing page against strict shape/count/mapping invariants.
 `models:proposal` emits a deterministic old/new report with
-`writesPerformed: false`; it does not update the runtime catalog. The weekly
-workflow uses the same read-only check.
+`writesPerformed: false`; it does not update the overlay. The weekly workflow
+uses the same read-only check.
 
 ## Features
 
@@ -248,6 +278,7 @@ workflow uses the same read-only check.
 - Bounded transient retries only before provider content is observed; API keys
   are redacted from surfaced HTTP and stream errors.
 - Command Code usage/cost reporting from the included model registry.
+- Runtime Provider catalog discovery merged with the reviewed capability overlay.
 - API-key environment authentication.
 - Browser-assisted `/login` with localhost callback, CSRF state validation, and
   manual key fallback.
@@ -264,7 +295,8 @@ transpiler:
 node --version
 node --test tests/test-pure-functions.ts tests/test-oauth.ts \
   tests/test-abort.ts tests/test-stream.ts tests/test-retry.ts \
-  tests/test-model-catalog.ts tests/test-model-registry.ts
+  tests/test-model-catalog.ts tests/test-model-registry.ts \
+  tests/test-dynamic-models.ts
 OMP_BIN="$(command -v omp)" node tests/test-omp-local.mjs
 ```
 
